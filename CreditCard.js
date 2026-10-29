@@ -1,22 +1,54 @@
 const appDb = db.getSiblingDB("creditcardapp");
 
-//Cleans 
 ["users", "cards", "transactions"].forEach(name => appDb.getCollection(name).drop());
 
-//Add Users
-const userResult = appDb.users.insertMany([
-  { firstName: "Alice", lastName: "Nguyen", email: "alice.nguyen@example.com", phone: "407-555-0101", createdAt: new Date("2026-01-15") },
-  { firstName: "Brian", lastName: "Carter", email: "brian.carter@example.com", phone: "407-555-0102", createdAt: new Date("2026-02-03") },
-  { firstName: "Carla", lastName: "Mendez", email: "carla.mendez@example.com", phone: "407-555-0103", createdAt: new Date("2026-03-21") }
-]);
+//User needs a password
+appDb.createCollection("users", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["firstName", "lastName", "email", "passwordHash", "createdAt"],
+      properties: {
+        email: { bsonType: "string" },
+        // bcrypt hashes are always 60 chars and start with $2a$, $2b$ or $2y$
+        passwordHash: { bsonType: "string", pattern: "^\\$2[aby]\\$\\d{2}\\$.{53}$" }
+      }
+    }
+  }
+});
 
-//insertedIds
+
+//Demo passwords
+//alice -> AliceDemo#2026
+//brian -> BrianDemo#2026
+//carla -> CarlaDemo#2026
+const userResult = appDb.users.insertMany([
+  {
+    firstName: "Alice", lastName: "Nguyen", email: "alice.nguyen@example.com", phone: "407-555-0101",
+    passwordHash: "$2b$12$OLTn.VzWoQwcJ7m9oIUaN.Qut2kX.7wVd1lXGOTXkq/PALDB0zDoO",
+    passwordUpdatedAt: new Date("2026-01-15"), lastLoginAt: null,
+    createdAt: new Date("2026-01-15")
+  },
+  {
+    firstName: "Brian", lastName: "Carter", email: "brian.carter@example.com", phone: "407-555-0102",
+    passwordHash: "$2b$12$a.2vrfJSY9qSu0bbM53yF.0fRPfgSrBTYQLi8HtNPVzNkyuYxJ2ue",
+    passwordUpdatedAt: new Date("2026-02-03"), lastLoginAt: null,
+    createdAt: new Date("2026-02-03")
+  },
+  {
+    firstName: "Carla", lastName: "Mendez", email: "carla.mendez@example.com", phone: "407-555-0103",
+    passwordHash: "$2b$12$gB9SJjNQG.cTL0/lIHzFE.JGlZiRvgFc7W1f1.AW/pyEaHEhGyD8C",
+    passwordUpdatedAt: new Date("2026-03-21"), lastLoginAt: null,
+    createdAt: new Date("2026-03-21")
+  }
+]);
+//ID's
 const aliceId = userResult.insertedIds[0];
 const brianId = userResult.insertedIds[1];
 const carlaId = userResult.insertedIds[2];
 
 //Cards
-//I only store the last 4 digits of the card
+//Only store the last 4 digits of cards
 const cardResult = appDb.cards.insertMany([
   { userId: aliceId, cardName: "Everyday Cash", network: "Visa", last4: "4821", creditLimit: 5000,  currentBalance: 1250.75, apr: 19.99, expirationDate: "09/2029", status: "active" },
   { userId: aliceId, cardName: "Travel Rewards", network: "Mastercard", last4: "9034", creditLimit: 10000, currentBalance: 320.10,  apr: 22.49, expirationDate: "04/2028", status: "active" },
