@@ -8,11 +8,11 @@ exports.createUser = async (req, res, next) => {
   try {
     const { firstName = '', lastName = '', username, password, email = '' } = req.body || {};
 
-    if (!login || !password) {
+    if (!username || !password) {
       return res.status(400).json({ error: 'username and password are required' });
     }
 
-    if (await User.exists({ login: String(login) })) {
+    if (await User.exists({ username: String(username) })) {
       return res.status(409).json({ error: 'A user with that username already exists' });
     }
 
@@ -22,7 +22,7 @@ exports.createUser = async (req, res, next) => {
     const user = await User.create({
       firstName: String(firstName),
       lastName: String(lastName),
-      username: String(login),
+      username: String(username),
       passwordHash: String(password),
       email: String(email)
     });
@@ -43,13 +43,13 @@ exports.login = async (req, res, next) => {
     const { username, password } = req.body || {};
 
     if (!username || !password) {
-      return res.status(400).json({ error: 'login and password are required' });
+      return res.status(400).json({ error: 'username and password are required' });
     }
 
     // String() matters: without it, a body like {"login": {"$ne": null}}
     // becomes a MongoDB operator instead of a username.
     // The password field is hidden by default (select: false), so ask for it.
-    const user = await User.findOne({ login: String(username) }).select('+passwordHash');
+    const user = await User.findOne({ username: String(username) }).select('+passwordHash');
     // Same message whether the login or the password was wrong, so the
     // response doesn't reveal which usernames exist.
     if (!user || !(await user.checkPassword(String(password)))) {
