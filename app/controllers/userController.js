@@ -50,8 +50,7 @@ exports.login = async (req, res, next) => {
     // String() matters: without it, a body like {"login": {"$ne": null}}
     // becomes a MongoDB operator instead of a username.
     // The password field is hidden by default (select: false), so ask for it.
-    const user = await User.findOne({ login: String(login) }).select('+password');
-
+    const user = await User.findOne({ login: String(login) }).select('+passwordHash');
     // Same message whether the login or the password was wrong, so the
     // response doesn't reveal which usernames exist.
     if (!user || !(await user.checkPassword(String(password)))) {
