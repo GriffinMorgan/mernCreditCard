@@ -17,9 +17,9 @@ const userSchema = new mongoose.Schema(
       default: '',
       trim: true
     },
-    login: {
+    username: {
       type: String,
-      required: [true, 'Login username is required'],
+      required: [true, 'Username is required'], // Add username already taken endpoint
       unique: true,
       trim: true
     },
@@ -65,21 +65,17 @@ const userSchema = new mongoose.Schema(
 // Hash the password whenever it is set or changed, so a plain-text
 // password is never written to the database.
 userSchema.pre('save', async function () {
-  if (!this.isModified('password')) return;
-  this.password = await bcrypt.hash(this.password, SALT_ROUNDS);
+  if (!this.isModified('passwordHash')) return;
+  this.passwordHash = await bcrypt.hash(this.passwordHash, SALT_ROUNDS);
 });
 
-// Compare a login attempt against the stored hash.
-// Only works on a document loaded with .select('+password').
 userSchema.methods.checkPassword = function (candidate) {
-  return bcrypt.compare(candidate, this.password);
+  return bcrypt.compare(candidate, this.passwordHash);
 };
 
-// Remove the password hash whenever a user document is sent as JSON
-// (for example, the document returned by User.create()).
 userSchema.set('toJSON', {
   transform: (doc, ret) => {
-    delete ret.password;
+    delete ret.passwordHash;
     return ret;
   }
 });

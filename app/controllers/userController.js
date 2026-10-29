@@ -6,14 +6,14 @@ const createToken = require('../middleware/auth');
 // /api/users
 exports.createUser = async (req, res, next) => {
   try {
-    const { firstName = '', lastName = '', login, password, email = '' } = req.body || {};
+    const { firstName = '', lastName = '', username, password, email = '' } = req.body || {};
 
     if (!login || !password) {
-      return res.status(400).json({ error: 'login and password are required' });
+      return res.status(400).json({ error: 'username and password are required' });
     }
 
     if (await User.exists({ login: String(login) })) {
-      return res.status(409).json({ error: 'A user with that login already exists' });
+      return res.status(409).json({ error: 'A user with that username already exists' });
     }
 
     // role is intentionally not read from the request body: letting clients
@@ -22,10 +22,9 @@ exports.createUser = async (req, res, next) => {
     const user = await User.create({
       firstName: String(firstName),
       lastName: String(lastName),
-      login: String(login),
+      username: String(login),
       passwordHash: String(password),
-      email: String(email),
-      role: 'user'
+      email: String(email)
     });
 
     // A new user is logged in right away, so the response includes a token.
@@ -41,20 +40,20 @@ exports.createUser = async (req, res, next) => {
 // /api/users/login
 exports.login = async (req, res, next) => {
   try {
-    const { login, password } = req.body || {};
+    const { username, password } = req.body || {};
 
-    if (!login || !password) {
+    if (!username || !password) {
       return res.status(400).json({ error: 'login and password are required' });
     }
 
     // String() matters: without it, a body like {"login": {"$ne": null}}
     // becomes a MongoDB operator instead of a username.
     // The password field is hidden by default (select: false), so ask for it.
-    const user = await User.findOne({ login: String(login) }).select('+passwordHash');
+    const user = await User.findOne({ login: String(username) }).select('+passwordHash');
     // Same message whether the login or the password was wrong, so the
     // response doesn't reveal which usernames exist.
     if (!user || !(await user.checkPassword(String(password)))) {
-      return res.status(401).json({ error: 'Invalid login or password' });
+      return res.status(401).json({ error: 'Invalid username or password' });
     }
 
     res.status(200).json({ token: createToken(user), user });
