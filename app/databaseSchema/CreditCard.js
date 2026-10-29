@@ -1,54 +1,57 @@
 const appDb = db.getSiblingDB("creditcardapp");
 
+//Clean
 ["users", "cards", "transactions"].forEach(name => appDb.getCollection(name).drop());
 
-//User needs a password
+//User Collection
 appDb.createCollection("users", {
   validator: {
     $jsonSchema: {
       bsonType: "object",
-      required: ["firstName", "lastName", "email", "passwordHash", "createdAt"],
+      required: ["firstName", "lastName", "username", "email", "passwordHash", "createdAt"],
       properties: {
+        username: { bsonType: "string", minLength: 3, maxLength: 30 },
         email: { bsonType: "string" },
-        // bcrypt hashes are always 60 chars and start with $2a$, $2b$ or $2y$
+        //bcrypt hashes are always 60 chars and start with $2a$, $2b$ or $2y$
         passwordHash: { bsonType: "string", pattern: "^\\$2[aby]\\$\\d{2}\\$.{53}$" }
       }
     }
   }
 });
 
-
-//Demo passwords
-//alice -> AliceDemo#2026
-//brian -> BrianDemo#2026
-//carla -> CarlaDemo#2026
+//Add Users
+//passwords are stored as bcrypt hashes (cost 12), never plaintext.
+//username alice -> AliceDemo#2026
+//username brian -> BrianDemo#2026
+//username carla -> CarlaDemo#2026
 const userResult = appDb.users.insertMany([
   {
-    firstName: "Alice", lastName: "Nguyen", email: "alice.nguyen@example.com", phone: "407-555-0101",
+    firstName: "Alice", lastName: "Nguyen", username: "alice", email: "alice.nguyen@example.com", phone: "407-555-0101",
     passwordHash: "$2b$12$OLTn.VzWoQwcJ7m9oIUaN.Qut2kX.7wVd1lXGOTXkq/PALDB0zDoO",
     passwordUpdatedAt: new Date("2026-01-15"), lastLoginAt: null,
     createdAt: new Date("2026-01-15")
   },
   {
-    firstName: "Brian", lastName: "Carter", email: "brian.carter@example.com", phone: "407-555-0102",
+    firstName: "Brian", lastName: "Carter", username: "brian", email: "brian.carter@example.com", phone: "407-555-0102",
     passwordHash: "$2b$12$a.2vrfJSY9qSu0bbM53yF.0fRPfgSrBTYQLi8HtNPVzNkyuYxJ2ue",
     passwordUpdatedAt: new Date("2026-02-03"), lastLoginAt: null,
     createdAt: new Date("2026-02-03")
   },
   {
-    firstName: "Carla", lastName: "Mendez", email: "carla.mendez@example.com", phone: "407-555-0103",
+    firstName: "Carla", lastName: "Mendez", username: "carla", email: "carla.mendez@example.com", phone: "407-555-0103",
     passwordHash: "$2b$12$gB9SJjNQG.cTL0/lIHzFE.JGlZiRvgFc7W1f1.AW/pyEaHEhGyD8C",
     passwordUpdatedAt: new Date("2026-03-21"), lastLoginAt: null,
     createdAt: new Date("2026-03-21")
   }
 ]);
+
 //ID's
 const aliceId = userResult.insertedIds[0];
 const brianId = userResult.insertedIds[1];
 const carlaId = userResult.insertedIds[2];
 
 //Cards
-//Only store the last 4 digits of cards
+//Only store the last 4 digits of the card
 const cardResult = appDb.cards.insertMany([
   { userId: aliceId, cardName: "Everyday Cash", network: "Visa", last4: "4821", creditLimit: 5000,  currentBalance: 1250.75, apr: 19.99, expirationDate: "09/2029", status: "active" },
   { userId: aliceId, cardName: "Travel Rewards", network: "Mastercard", last4: "9034", creditLimit: 10000, currentBalance: 320.10,  apr: 22.49, expirationDate: "04/2028", status: "active" },
@@ -56,10 +59,10 @@ const cardResult = appDb.cards.insertMany([
   { userId: carlaId, cardName: "Platinum", network: "Amex", last4: "3005", creditLimit: 15000, currentBalance: 0.00,    apr: 17.99, expirationDate: "02/2030", status: "frozen" }
 ]);
 
-const everydayCashId   = cardResult.insertedIds[0];
-const travelRewardsId  = cardResult.insertedIds[1];
+const everydayCashId = cardResult.insertedIds[0];
+const travelRewardsId = cardResult.insertedIds[1];
 const studentStarterId = cardResult.insertedIds[2];
-const platinumId       = cardResult.insertedIds[3];
+const platinumId = cardResult.insertedIds[3];
 
 //Transactions
 appDb.transactions.insertMany([
@@ -73,6 +76,8 @@ appDb.transactions.insertMany([
 
 //Indexes for the foreign keys and unique email
 appDb.users.createIndex({ email: 1 }, { unique: true });
+//Unique username, case-insensitive so "Alice" and "alice" can't both exist
+appDb.users.createIndex({ username: 1 }, { unique: true, collation: { locale: "en", strength: 2 } });
 appDb.cards.createIndex({ userId: 1 });
 appDb.transactions.createIndex({ cardId: 1 });
 appDb.transactions.createIndex({ userId: 1 });
