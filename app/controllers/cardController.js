@@ -37,8 +37,32 @@ exports.createCard = async (req, res, next) => {
 // /api/cards/getCards
 exports.getCards = async (req, res, next) => {
     try{
-        const cards = await Card.find({userId: req.userId}).sort({createdAt: -1});
-        res.status(200).json(cards);
+        const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+        const skip = (page - 1) * limit;
+        const filter = {userId : req.userId}; // used to find only cards with our logged in userID
+
+        const [cards, total] = await Promise.all([
+            Card.find(filter)
+            .sort({createdAt: -1, _id: -1})
+            .skip(skip)
+            .limit(limit),
+            Card.countDocuments(filter)
+        ]);
+
+        const totalPages = Math.ceil(total / limit);
+
+        res.status(200).json({
+            data: cards,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1
+            }
+        });
     } catch(err) {
         next(err);
     }
