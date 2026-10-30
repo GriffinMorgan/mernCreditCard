@@ -35,6 +35,10 @@ exports.createCard = async (req, res, next) => {
 
 // GET
 // /api/cards/getCards
+
+/* 
+FRONTEND GETS A DATA AND PAGINATION JSON so write -> const {data, pagination} = await res.json();
+*/
 exports.getCards = async (req, res, next) => {
     try{
         const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
