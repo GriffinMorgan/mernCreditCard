@@ -10,4 +10,5 @@ router.get('/ping', (req, res) => {
 // /api/users/... -> routs to users.js
 router.use('/users', require('./users'));
 
+router.use('/cards', require('./cards'));
 module.exports = router;
