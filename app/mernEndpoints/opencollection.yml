@@ -1,0 +1,6 @@
+opencollection: 1.0.0
+info:
+  name: MERN Credit Card API
+extensions:
+  bruno:
+    defaultEnvironment: Local

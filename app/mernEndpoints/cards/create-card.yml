@@ -1,0 +1,46 @@
+info:
+  name: Create Card
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/cards"
+  body:
+    type: json
+    data: |-
+      {
+        "cardName": "Test Card",
+        "network": "Visa",
+        "last4": "{{last4}}",
+        "creditLimit": 5000,
+        "currentBalance": 0,
+        "apr": 19.99,
+        "expirationDate": "09/2029"
+      }
+  auth:
+    type: bearer
+    token: "{{token}}"
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        // Random last 4 digits, so repeat runs don't hit 409
+        bru.setVar("last4", String(Math.floor(1000 + Math.random() * 9000)));
+    - type: after-response
+      code: |-
+        if (res.status === 201) {
+          bru.setVar("cardId", res.body._id);
+        }
+    - type: tests
+      code: |-
+        test("returns 201", function() {
+          expect(res.status).to.equal(201);
+        });
+        test("card belongs to the logged-in user", function() {
+          expect(res.body.userId).to.equal(bru.getVar("userId"));
+        });
+
+settings:
+  encodeUrl: true

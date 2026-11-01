@@ -1,0 +1,35 @@
+info:
+  name: Login
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/users/login"
+  body:
+    type: json
+    data: |-
+      {
+        "username": "alice",
+        "password": "AliceDemo#2026"
+      }
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("token", res.body.token);
+          bru.setVar("userId", res.body.user._id);
+        }
+    - type: tests
+      code: |-
+        test("returns 200", function() {
+          expect(res.status).to.equal(200);
+        });
+        test("returns a token", function() {
+          expect(res.body.token).to.be.a("string");
+        });
+
+settings:
+  encodeUrl: true

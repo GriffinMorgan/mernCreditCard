@@ -1,0 +1,7 @@
+name: Local
+variables:
+  - name: baseUrl
+    value: http://localhost:5000
+    enabled: true
+    secret: false
+    description: Express API running locally (npm run dev or docker compose)
