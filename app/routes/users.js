@@ -9,7 +9,7 @@ const router = express.Router();
 router.param('userId', validateObjectId);
 
 // POST:
-// /api/users - Register a new user (open to everyone)
+// /api/users/create - Register a new user (open to everyone)
 router.post('/create', users.createUser);
 
 // /api/users/login

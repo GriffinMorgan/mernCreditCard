@@ -3,7 +3,7 @@ const { createToken } = require('../middleware/auth');
 
 // POST 
 
-// /api/users
+// /api/users/create
 exports.createUser = async (req, res, next) => {
   try {
     const { firstName = '', lastName = '', username, password, email = '' } = req.body || {};
