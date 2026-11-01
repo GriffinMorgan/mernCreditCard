@@ -1,0 +1,39 @@
+info:
+  name: Get Cards (Paginated)
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/cards?page=1&limit=10"
+  params:
+    - name: page
+      value: "1"
+      type: query
+    - name: limit
+      value: "10"
+      type: query
+  auth:
+    type: bearer
+    token: "{{token}}"
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("returns 200", function() {
+          expect(res.status).to.equal(200);
+        });
+        test("returns data and pagination", function() {
+          expect(res.body.data).to.be.an("array");
+          expect(res.body.pagination).to.include.keys("page", "limit", "total", "totalPages");
+        });
+        test("only returns the user's own cards", function() {
+          const userId = bru.getVar("userId");
+          res.body.data.forEach(function(card) {
+            expect(card.userId).to.equal(userId);
+          });
+        });
+
+settings:
+  encodeUrl: true

@@ -1,0 +1,53 @@
+info:
+  name: Register
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/users/create"
+  body:
+    type: json
+    data: |-
+      {
+        "firstName": "Test",
+        "lastName": "User",
+        "username": "{{regUsername}}",
+        "password": "{{regPassword}}",
+        "email": "{{regUsername}}@example.com"
+      }
+
+runtime:
+  variables:
+    - name: baseUrl
+      value: http://localhost:5000
+  scripts:
+    - type: before-request
+      code: |-
+        // Unique username on every run, so repeat runs don't hit 409
+        bru.setVar("regUsername", "test_" + Date.now());
+        bru.setVar("regPassword", "TestPass#2026");
+    - type: after-response
+      code: |-
+        if (res.status === 201) {
+          bru.setVar("token", res.body.token);
+          bru.setVar("userId", res.body.user._id);
+        }
+    - type: tests
+      code: |-
+        test("returns 201", function() {
+          expect(res.status).to.equal(201);
+        });
+        test("returns a token", function() {
+          expect(res.body.token).to.be.a("string");
+        });
+        test("does not return the password hash", function() {
+          expect(res.body.user).to.not.have.property("passwordHash");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true

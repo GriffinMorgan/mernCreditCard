@@ -1,0 +1,7 @@
+name: Production
+variables:
+  - name: baseUrl
+    value: https://mern.teedlej.com
+    enabled: true
+    secret: false
+    description: API on the DigitalOcean droplet behind Nginx
