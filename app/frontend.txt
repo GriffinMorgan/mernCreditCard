@@ -1,0 +1,16 @@
+User Basic Features
+- See total Balance Spent
+- Make a spending breakdown circle (by category)
+- Spending analysis showing whether they used the right card (could they have gotten 3% back at a store and got 1% with the card they used)
+   - Recommend the right card/cards depending on whether they have multiple that would work
+- Maybe like a family section that lets parents watch the spending of the family
+
+
+
+Company Basic Features
+- See total customer spending for day, week, month
+- See analysis of customer spending and whether they are maximizing rewards
+
+
+Should we add an automatic, like an AI summary or some dumbshit like that 
+Should we add like a card recommendation section that we analyze their spending and notice they could be benefitting from xyz card and reccomend them.
