@@ -18,6 +18,6 @@ router.post('/login', users.login);
 // Everything below needs a logged-in user, and only their own account
 // GET:
 // /api/users/:userId - Fetch one user
-router.get('/:userId', requireAuth, requireSelf, users.getUser);
+router.get('/:userId', requireAuth(), requireSelf, users.getUser);
 
 module.exports = router;

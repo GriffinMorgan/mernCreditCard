@@ -6,7 +6,7 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 
 // Every card route requires a logged-in user
-router.use(requireAuth);
+router.use(requireAuth());
 
 router.param('transId', validateObjectId);
 router.param('cardId', validateObjectId);
