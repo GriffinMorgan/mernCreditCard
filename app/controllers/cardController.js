@@ -4,7 +4,7 @@ const Card = require('../models/Card');
 exports.createCard = async (req, res, next) => {
     try{
         const { cardName = '', network, last4, creditLimit, currentBalance = 0, apr, expirationDate, status} = req.body || {};
-
+        
         // Frontend needs to have these fields + apr:
         if (!cardName || !network || !last4 || creditLimit == null || apr == null || !expirationDate){
             return res.status(400).json({error: 'cardName, network, last4, creditLimit, apr and expirationDate are required'}); 
@@ -72,6 +72,7 @@ exports.getCards = async (req, res, next) => {
     }
 };
 
+// /api/cards/getCard
 exports.getCard = async (req, res, next) => {
   try {
     // Filtering by both _id and userId means another user's card
@@ -82,4 +83,20 @@ exports.getCard = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+};
+
+// DELETE
+// /api/cards/deleteCard
+
+exports.deleteCard = async (req, res, next) => {
+    try{
+        // Deletes card using the cardID input parameter we want to delete
+        const deletedCard = await Card.deleteOne({_id: req.params.cardId, userId: req.userId});
+        if (deletedCard.deletedCount === 0) {
+            return res.status(404).json({ error: "Cant delete, card does not exist." });
+        }
+        res.status(200).json(deletedCard);
+    } catch (err) {
+        next(err);
+    }
 };
