@@ -10,7 +10,7 @@ router.use(requireAuth);
 
 router.param('transId', validateObjectId);
 router.param('cardId', validateObjectId);
-router.param('userId', validationObjectId);
+router.param('userId', validateObjectId);
 
 // POST /api/transaction/create     - Add a transaction
 router.post('/', transactions.createTrans);

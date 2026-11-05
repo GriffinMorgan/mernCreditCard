@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const { createToken } = require('../middleware/auth');
-
+const {isPasswordValid} = require('../config/utils');
 // POST 
 
 // /api/users/create
@@ -16,6 +16,11 @@ exports.createUser = async (req, res, next) => {
       return res.status(409).json({ error: 'A user with that username already exists' });
     }
 
+    const passwordRet = isPasswordValid(password);
+
+    if (!passwordRet.valid){
+      return res.status(400).json({ error: passwordRet.error });
+    }
     // role is intentionally not read from the request body: letting clients
     // choose their own role would let anyone register as an admin.
     // The password is hashed by the User model before it is saved.
