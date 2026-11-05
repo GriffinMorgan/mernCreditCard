@@ -1,3 +1,5 @@
+const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -23,6 +25,18 @@ app.use(express.json());
 
 // Every API route lives under /api and is defined in ./routes
 app.use('/api', apiRouter);
+
+// Serve built React frontend (frontend/dist) in production when present
+const frontendDistPath = path.join(__dirname, 'frontend', 'dist');
+if (fs.existsSync(path.join(frontendDistPath, 'index.html'))) {
+  app.use(express.static(frontendDistPath));
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api')) {
+      return res.sendFile(path.join(frontendDistPath, 'index.html'));
+    }
+    next();
+  });
+}
 
 // Must come after all routes: unknown routes, then the central error handler
 app.use(notFound);
