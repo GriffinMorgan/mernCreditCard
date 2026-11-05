@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #070c1a;
+    color: #f1f5f9;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+  }
+}
+
+@layer components {
+  .signal-card {
+    @apply bg-navy-850/90 border border-slate-800/90 rounded-2xl shadow-xl backdrop-blur-md;
+  }
+
+  .signal-panel {
+    @apply bg-navy-800/80 border border-indigo-400/15 rounded-xl;
+  }
+
+  .signal-input {
+    @apply w-full bg-navy-900/90 border border-slate-700/80 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-signal-indigo focus:ring-2 focus:ring-signal-indigo/25 transition-all;
+  }
+
+  .signal-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-signal-indigo hover:bg-signal-indigoHover text-navy-950 font-semibold px-5 py-2.5 rounded-xl transition-all shadow-glow active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .signal-btn-coral {
+    @apply inline-flex items-center justify-center gap-2 bg-signal-coral hover:bg-signal-coralHover text-white font-semibold px-5 py-2.5 rounded-full transition-all shadow-coralGlow active:scale-[0.99];
+  }
+}
+
+/* Custom sleek scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #070c1a;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e2e57;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #7e8ef7;
+}
+
