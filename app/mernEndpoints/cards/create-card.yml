@@ -16,7 +16,8 @@ http:
         "creditLimit": 5000,
         "currentBalance": 0,
         "apr": 19.99,
-        "expirationDate": "09/2029"
+        "expirationDate": "09/2029",
+        "status": "active"
       }
   auth:
     type: bearer
