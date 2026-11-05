@@ -1,13 +1,5 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import {
-  LogIn,
-  LogOut,
-  Server,
-  RefreshCw,
-  LayoutDashboard,
-  Sparkles,
-} from 'lucide-react';
 import SpendSignalLogo from './SpendSignalLogo';
 import { useAuth } from '../context/AuthContext';
 import { API_ENVIRONMENTS } from '../services/api';
@@ -25,19 +17,13 @@ export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const isLanding = location.pathname === '/';
   const isLogin = location.pathname === '/login';
   const isDashboard = location.pathname.startsWith('/dashboard');
 
-  const scrollToSection = (id) => {
-    const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: 'smooth' });
-  };
-
   return (
-    <header className="sticky top-0 z-50 bg-navy-950/90 backdrop-blur-xl border-b border-slate-800/80">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Left: Brand + Context-Specific Navigation */}
+    <header className="sticky top-0 z-50 bg-[#090E1A] border-b border-[#1A2540]">
+      <div className="max-w-[1400px] mx-auto px-8 h-14 flex items-center justify-between">
+        {/* Left: Logo & Context */}
         <div className="flex items-center gap-8">
           <Link to="/" className="focus:outline-none">
             <SpendSignalLogo
@@ -45,49 +31,28 @@ export default function Navbar() {
               uppercase={true}
               portalBadge={
                 isDashboard
-                  ? `${(user?.role || 'Cardholder').toUpperCase()} PORTAL`
+                  ? `${user?.role ? user.role : 'Workspace'}`
                   : isLogin
-                  ? 'Sign In'
-                  : null
+                  ? 'Authentication'
+                  : 'Platform'
               }
             />
           </Link>
-
-          {/* Public Landing Page Anchors ONLY shown on "/" */}
-          {isLanding && (
-            <nav className="hidden md:flex items-center gap-1">
-              {[
-                { id: 'features', label: 'Features' },
-                { id: 'how-it-works', label: 'How It Works' },
-                { id: 'portals', label: 'Solutions by Role' },
-              ].map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => scrollToSection(item.id)}
-                  className="px-3.5 py-2 text-sm font-medium text-slate-400 hover:text-white rounded-lg hover:bg-navy-900/50 transition-colors"
-                >
-                  {item.label}
-                </button>
-              ))}
-            </nav>
-          )}
         </div>
 
-        {/* Right: API Target Switcher + Route Navigation */}
-        <div className="flex items-center gap-3">
-          {/* API Environment Selector & Health Indicator */}
-          <div className="hidden sm:flex items-center gap-2 bg-navy-900/90 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs">
-            <Server className="w-3.5 h-3.5 text-signal-indigo shrink-0" />
+        {/* Right: Environment Selector + Session Actions */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 bg-[#11192E] border border-[#1E2B48] rounded-md px-2.5 py-1 text-xs">
+            <span className="text-slate-500">API</span>
             <select
               aria-label="Select API Environment"
               value={apiEnvKey}
               onChange={(e) => changeApiEnv(e.target.value)}
-              className="bg-transparent text-slate-300 font-medium focus:outline-none cursor-pointer pr-1"
+              className="bg-transparent text-slate-300 font-medium focus:outline-none cursor-pointer"
             >
               {Object.values(API_ENVIRONMENTS).map((env) => (
-                <option key={env.id} value={env.id} className="bg-navy-900 text-slate-200">
-                  {env.label} ({env.id === 'local' ? ':5000' : 'Droplet'})
+                <option key={env.id} value={env.id} className="bg-[#090E1A] text-slate-200">
+                  {env.id === 'local' ? 'localhost:5000' : 'mern.teedlej.com'}
                 </option>
               ))}
             </select>
@@ -95,70 +60,66 @@ export default function Navbar() {
             <button
               type="button"
               onClick={checkBackendHealth}
-              title={`API Status: ${backendStatus.message || backendStatus.state}. Click to re-ping GET /api/ping`}
-              className="inline-flex items-center gap-1.5 pl-2 border-l border-slate-800 text-slate-400 hover:text-slate-200"
+              title="Click to ping GET /api/ping"
+              className="inline-flex items-center gap-1.5 pl-2 border-l border-[#1E2B48] text-slate-400 hover:text-slate-200"
             >
               <span
-                className={`w-2 h-2 rounded-full ${
+                className={`w-1.5 h-1.5 rounded-full ${
                   backendStatus.state === 'online'
-                    ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
+                    ? 'bg-emerald-400'
                     : backendStatus.state === 'checking'
-                    ? 'bg-amber-400 animate-pulse'
-                    : 'bg-signal-coral'
+                    ? 'bg-amber-400'
+                    : 'bg-[#F85C70]'
                 }`}
               />
-              <span className="hidden lg:inline">
+              <span className="tabular-nums text-[11px]">
                 {backendStatus.state === 'online'
                   ? `${backendStatus.latencyMs}ms`
                   : backendStatus.state === 'checking'
-                  ? 'Pinging...'
-                  : 'Offline'}
+                  ? '...'
+                  : 'offline'}
               </span>
-              <RefreshCw
-                className={`w-3 h-3 ${backendStatus.state === 'checking' ? 'animate-spin' : ''}`}
-              />
             </button>
           </div>
 
-          {/* Auth Controls */}
           {isAuthenticated ? (
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-400">
+                Signed in as <strong className="text-slate-200">@{user.username}</strong>
+              </span>
               {!isDashboard && (
-                <Link
-                  to="/dashboard"
-                  className="signal-btn-primary text-xs sm:text-sm py-2 px-4"
-                >
-                  <LayoutDashboard className="w-4 h-4" />
-                  <span>Go to Dashboard</span>
+                <Link to="/dashboard" className="btn-primary text-xs py-1.5 px-3.5">
+                  Dashboard
                 </Link>
               )}
-
               <button
                 type="button"
                 onClick={() => {
                   logout();
                   navigate('/login');
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-navy-800 hover:bg-signal-coral/20 border border-slate-700/80 hover:border-signal-coral/50 text-xs font-medium text-slate-300 hover:text-signal-coral transition-all"
+                className="btn-secondary text-xs py-1.5 px-3"
               >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Sign Out</span>
+                Sign out
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               {!isLogin ? (
-                <Link to="/login" className="signal-btn-primary text-xs sm:text-sm py-2 px-4">
-                  <LogIn className="w-4 h-4" />
-                  <span>Sign In</span>
-                </Link>
+                <>
+                  <Link to="/login" className="btn-secondary text-xs py-1.5 px-3.5">
+                    Sign in
+                  </Link>
+                  <Link
+                    to="/login?mode=register"
+                    className="btn-primary text-xs py-1.5 px-3.5"
+                  >
+                    Create account
+                  </Link>
+                </>
               ) : (
-                <Link
-                  to="/"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-navy-800 hover:bg-navy-750 border border-slate-700 text-xs sm:text-sm font-medium text-slate-200 transition-colors"
-                >
-                  <Sparkles className="w-4 h-4 text-signal-indigo" />
-                  <span>Back to Home</span>
+                <Link to="/" className="btn-secondary text-xs py-1.5 px-3.5">
+                  ← Overview
                 </Link>
               )}
             </div>

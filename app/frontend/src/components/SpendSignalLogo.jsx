@@ -5,55 +5,43 @@ export default function SpendSignalLogo({
   portalBadge = null,
   uppercase = false,
 }) {
-  const barDimensions = {
-    sm: { h1: 12, h2: 17, h3: 22, w: 4, gap: 'gap-1', text: 'text-lg' },
-    md: { h1: 14, h2: 20, h3: 27, w: 5, gap: 'gap-1', text: 'text-xl' },
-    lg: { h1: 18, h2: 26, h3: 34, w: 6, gap: 'gap-1.5', text: 'text-2xl' },
+  const dims = {
+    sm: { h1: 11, h2: 16, h3: 21, w: 3.5, text: 'text-base' },
+    md: { h1: 13, h2: 19, h3: 25, w: 4, text: 'text-lg' },
+    lg: { h1: 16, h2: 23, h3: 30, w: 5, text: 'text-xl' },
   }[size];
 
   return (
-    <div className="inline-flex items-center gap-3 select-none">
-      {/* Three rising signal bars matching the SpendSignal mockups */}
-      <div className={`inline-flex items-end ${barDimensions.gap}`}>
+    <div className="inline-flex items-center gap-2.5 select-none">
+      <div className="inline-flex items-end gap-[3px]">
         <span
-          style={{ height: `${barDimensions.h1}px`, width: `${barDimensions.w}px` }}
-          className="rounded-sm bg-signal-coral inline-block"
+          style={{ height: `${dims.h1}px`, width: `${dims.w}px` }}
+          className="bg-[#F85C70] rounded-[1px] inline-block"
         />
         <span
-          style={{ height: `${barDimensions.h2}px`, width: `${barDimensions.w}px` }}
-          className="rounded-sm bg-signal-indigo inline-block"
+          style={{ height: `${dims.h2}px`, width: `${dims.w}px` }}
+          className="bg-[#7E8EF7] rounded-[1px] inline-block"
         />
         <span
-          style={{ height: `${barDimensions.h3}px`, width: `${barDimensions.w}px` }}
-          className="rounded-sm bg-gradient-to-t from-signal-coral to-signal-indigo inline-block"
+          style={{ height: `${dims.h3}px`, width: `${dims.w}px` }}
+          className="bg-[#F85C70] rounded-[1px] inline-block"
         />
       </div>
 
       <span
-        className={`font-bold tracking-tight text-white ${barDimensions.text} ${
-          uppercase ? 'uppercase tracking-widest' : ''
+        className={`font-bold text-white ${dims.text} ${
+          uppercase ? ' tracking-[0.12em] uppercase text-sm' : 'tracking-tight'
         }`}
       >
-        {uppercase ? (
-          <>
-            SPEND<span className="text-signal-indigo">SIGNAL</span>
-          </>
-        ) : (
-          <>
-            Spend<span className="text-signal-indigo">Signal</span>
-          </>
-        )}
+        SpendSignal
       </span>
 
       {portalBadge && (
         <>
-          <span className="h-5 w-px bg-slate-700/80 mx-0.5" />
-          <span className="px-2.5 py-1 rounded-md bg-navy-800 border border-slate-700/70 text-xs font-medium text-slate-300">
-            {portalBadge}
-          </span>
+          <span className="h-4 w-px bg-[#243252] mx-1" />
+          <span className="text-xs font-medium text-slate-400">{portalBadge}</span>
         </>
       )}
     </div>
   );
 }
-

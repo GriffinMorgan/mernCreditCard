@@ -4,48 +4,55 @@
 
 @layer base {
   body {
-    background-color: #070c1a;
-    color: #f1f5f9;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: #090e1a;
+    color: #e2e8f0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     overflow-x: hidden;
   }
 }
 
 @layer components {
-  .signal-card {
-    @apply bg-navy-850/90 border border-slate-800/90 rounded-2xl shadow-xl backdrop-blur-md;
+  .panel {
+    @apply bg-[#11192E] border border-[#1E2B48] rounded-lg;
   }
 
-  .signal-panel {
-    @apply bg-navy-800/80 border border-indigo-400/15 rounded-xl;
+  .panel-inset {
+    @apply bg-[#0B1120] border border-[#1A2540] rounded-md;
   }
 
-  .signal-input {
-    @apply w-full bg-navy-900/90 border border-slate-700/80 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-signal-indigo focus:ring-2 focus:ring-signal-indigo/25 transition-all;
+  .field-input {
+    @apply w-full bg-[#0B1120] border border-[#243252] rounded-md px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-[#7E8EF7] transition-colors;
   }
 
-  .signal-btn-primary {
-    @apply inline-flex items-center justify-center gap-2 bg-signal-indigo hover:bg-signal-indigoHover text-navy-950 font-semibold px-5 py-2.5 rounded-xl transition-all shadow-glow active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed;
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-[#7E8EF7] hover:bg-[#6C7EEB] text-[#090E1A] font-semibold text-sm px-4 py-2 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
-  .signal-btn-coral {
-    @apply inline-flex items-center justify-center gap-2 bg-signal-coral hover:bg-signal-coralHover text-white font-semibold px-5 py-2.5 rounded-full transition-all shadow-coralGlow active:scale-[0.99];
+  .btn-coral {
+    @apply inline-flex items-center justify-center gap-2 bg-[#F85C70] hover:bg-[#E64C60] text-white font-semibold text-sm px-4 py-2 rounded-md transition-colors;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 bg-[#16213B] hover:bg-[#1D2B4B] border border-[#263659] text-slate-200 font-medium text-sm px-4 py-2 rounded-md transition-colors;
   }
 }
 
-/* Custom sleek scrollbar */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #070c1a;
+  background: #090e1a;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e2e57;
-  border-radius: 4px;
+  background: #1e2b48;
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #7e8ef7;
 }
-

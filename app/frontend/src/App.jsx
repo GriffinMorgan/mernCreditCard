@@ -11,7 +11,7 @@ export default function App() {
   return (
     <AuthProvider>
       <Router>
-        <div className="min-h-screen flex flex-col bg-navy-950 text-slate-100">
+        <div className="min-h-screen flex flex-col bg-[#090E1A] text-slate-100">
           <Navbar />
 
           <main className="flex-1">
@@ -23,12 +23,10 @@ export default function App() {
             </Routes>
           </main>
 
-          <footer className="border-t border-slate-800/80 bg-navy-950 py-8 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+          <footer className="border-t border-[#1A2540] bg-[#090E1A] py-6 px-8">
+            <div className="max-w-[1400px] mx-auto flex items-center justify-between text-xs text-slate-500">
               <SpendSignalLogo size="sm" uppercase={true} />
-              <div>
-                MERN Stack Credit Card Intelligence Platform · Express + MongoDB + React + Vite
-              </div>
+              <div>SpendSignal Credit Card Analytics · COP 4331 MERN Stack</div>
             </div>
           </footer>
         </div>

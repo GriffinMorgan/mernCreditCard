@@ -1,17 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import {
-  CreditCard,
-  Plus,
-  RefreshCw,
-  UserCheck,
-  BarChart3,
-  Code2,
-  Bell,
-  Sparkles,
-  CheckCircle2,
-  Shield,
-} from 'lucide-react';
 import SpendSignalLogo from '../components/SpendSignalLogo';
 import { useAuth } from '../context/AuthContext';
 import { fetchUserCards, fetchCardById, createUserCard } from '../services/api';
@@ -19,15 +7,13 @@ import { fetchUserCards, fetchCardById, createUserCard } from '../services/api';
 const SANDBOX_ENDPOINTS = {
   '/best-card': {
     request: `{
-  // interactive variables
   "merchant": "bostontson",
   "amount": 100,
   "wallet": {
-    "cards": [
-      { "card_0": "01", "apr": 19.99 },
-      { "card_1": 300,  "limit": 5000 },
-      { "card_3": "16", "limit": 10000 }
-    ]
+    "card_0": "01",
+    "card_1": 300,
+    "card_3": "16",
+    "card_4": 200
   },
   "Recommendation": "SpendSignal"
 }`,
@@ -78,7 +64,6 @@ const SANDBOX_ENDPOINTS = {
 export default function DashboardPage() {
   const { user, isAuthenticated, apiEnvKey } = useAuth();
 
-  // Determine the user's assigned role from MongoDB (defaults to 'user' / Cardholder if not set on schema yet)
   const assignedRole = user?.role || 'user';
   const [activeRoleView, setActiveRoleView] = useState(assignedRole);
 
@@ -88,7 +73,6 @@ export default function DashboardPage() {
     }
   }, [user?.role]);
 
-  // Cardholder Wallet state (connected to GET /api/cards & POST /api/cards)
   const [cards, setCards] = useState([]);
   const [selectedCardDetail, setSelectedCardDetail] = useState(null);
   const [loadingCards, setLoadingCards] = useState(false);
@@ -105,7 +89,6 @@ export default function DashboardPage() {
   const [cardError, setCardError] = useState(null);
   const [creatingCard, setCreatingCard] = useState(false);
 
-  // Partner Sandbox state
   const [selectedEndpoint, setSelectedEndpoint] = useState('/best-card');
   const [sandboxRunning, setSandboxRunning] = useState(false);
   const [whiteLabelColorOn, setWhiteLabelColorOn] = useState(true);
@@ -168,167 +151,133 @@ export default function DashboardPage() {
   const totalLimit = cards.reduce((sum, c) => sum + Number(c.creditLimit || 0), 0);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-[1400px] mx-auto px-8 py-8 space-y-6">
       {/* =====================================================================
-          AUTHENTICATED USER & ROLE HEADER BAR
+          SUB-NAVIGATION & ROLE BAR
       ===================================================================== */}
-      <div className="signal-card p-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-signal-indigo/15 border border-signal-indigo/40 flex items-center justify-center text-signal-indigo font-bold text-lg">
-            {(user.firstName?.[0] || user.username?.[0] || 'U').toUpperCase()}
-          </div>
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-xl sm:text-2xl font-bold text-white">
-                Welcome back, {user.firstName ? `${user.firstName} ${user.lastName}` : `@${user.username}`}
-              </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                @{user.username}
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Account Role:{' '}
-              <span className="text-slate-200 font-semibold uppercase">{assignedRole}</span>
-              {!user.role && (
-                <span className="text-slate-500 ml-1.5">
-                  (No <code>role</code> field in MongoDB User document yet — preview any role
-                  workspace on the right)
-                </span>
-              )}
-            </p>
+      <div className="flex items-center justify-between border-b border-[#1E2B48] pb-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold text-white">
+              {user.firstName ? `${user.firstName} ${user.lastName}` : user.username}
+            </h1>
+            <span className="text-xs font-mono text-slate-400">@{user.username}</span>
+            <span className="px-2 py-0.5 rounded bg-[#16213B] border border-[#263659] text-[11px] text-slate-300">
+              Role: {assignedRole}
+            </span>
           </div>
         </div>
 
-        {/* Role Workspace Switcher (so developer can preview User vs Merchant vs Partner dashboards) */}
-        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-navy-900 border border-slate-800">
+        {/* Role View Switcher */}
+        <div className="flex items-center gap-1 bg-[#11192E] border border-[#1E2B48] p-1 rounded-md">
           {[
-            { id: 'user', label: 'Cardholder Dashboard', icon: CreditCard },
-            { id: 'merchant', label: 'Merchant Portal', icon: BarChart3 },
-            { id: 'partner', label: 'Partner Portal', icon: Code2 },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const active = activeRoleView === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveRoleView(tab.id)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  active
-                    ? 'bg-signal-indigo text-navy-950 shadow'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+            { id: 'user', label: 'Cardholder Workspace' },
+            { id: 'merchant', label: 'Merchant Portal' },
+            { id: 'partner', label: 'Partner Portal' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveRoleView(tab.id)}
+              className={`px-3.5 py-1.5 rounded text-xs font-medium transition-colors ${
+                activeRoleView === tab.id
+                  ? 'bg-[#7E8EF7] text-[#090E1A] font-semibold'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* =====================================================================
-          ROLE VIEW 1: CARDHOLDER / USER DASHBOARD (activeRoleView === 'user')
+          ROLE VIEW 1: CARDHOLDER WORKSPACE
       ===================================================================== */}
       {activeRoleView === 'user' && (
-        <div className="space-y-8">
-          {/* Top KPI Summary Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="signal-card p-5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <div className="space-y-6">
+          {/* KPI Strip */}
+          <div className="panel grid grid-cols-4 divide-x divide-[#1E2B48]">
+            <div className="p-5">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                 Total Balance Spent
-              </span>
-              <div className="text-3xl font-extrabold text-white mt-1.5">
+              </div>
+              <div className="text-2xl font-bold text-white tabular-nums mt-1">
                 ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </div>
-              <span className="text-xs text-slate-400 mt-1 block">
-                Across {cards.length} connected card(s)
-              </span>
+              <div className="text-xs text-slate-500 mt-1">{cards.length} active card(s)</div>
             </div>
 
-            <div className="signal-card p-5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <div className="p-5">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                 Available Credit
-              </span>
-              <div className="text-3xl font-extrabold text-emerald-400 mt-1.5">
+              </div>
+              <div className="text-2xl font-bold text-emerald-400 tabular-nums mt-1">
                 $
                 {Math.max(0, totalLimit - totalBalance).toLocaleString(undefined, {
                   minimumFractionDigits: 2,
                 })}
               </div>
-              <span className="text-xs text-slate-400 mt-1 block">
-                Total Limit: ${totalLimit.toLocaleString()}
-              </span>
-            </div>
-
-            <div className="signal-card p-5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Card ROI Net Value
-              </span>
-              <div className="text-3xl font-extrabold text-signal-indigo mt-1.5">+$230</div>
-              <span className="text-xs text-slate-400 mt-1 block">
-                $780 return vs. $550 annual fees
-              </span>
-            </div>
-
-            <div className="signal-card p-5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Wallet Score
-              </span>
-              <div className="flex items-baseline gap-2 mt-1.5">
-                <span className="text-3xl font-extrabold text-white">85</span>
-                <span className="text-sm font-bold text-signal-coral">/ 100</span>
+              <div className="text-xs text-slate-500 mt-1">
+                Credit Limit: ${totalLimit.toLocaleString()}
               </div>
-              <span className="text-xs text-signal-coral mt-1 block">
-                $120/yr unused credits detected
-              </span>
+            </div>
+
+            <div className="p-5">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                Card ROI Net Value
+              </div>
+              <div className="text-2xl font-bold text-[#7E8EF7] tabular-nums mt-1">+$230.00</div>
+              <div className="text-xs text-slate-500 mt-1">$780 return vs $550 fee</div>
+            </div>
+
+            <div className="p-5">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                Wallet Score &amp; Leakage
+              </div>
+              <div className="text-2xl font-bold text-white tabular-nums mt-1">
+                85 <span className="text-sm font-normal text-slate-400">/ 100</span>
+              </div>
+              <div className="text-xs text-[#F85C70] mt-1">$120/yr unused credits</div>
             </div>
           </div>
 
-          {/* User's MongoDB Credit Cards Section */}
-          <div className="signal-card p-6 sm:p-8">
-            <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-800">
+          {/* Connected Cards Table + Add Card */}
+          <div className="panel overflow-hidden">
+            <div className="px-6 py-4 bg-[#0D1426] border-b border-[#1E2B48] flex items-center justify-between">
               <div>
-                <span className="text-xs font-bold uppercase tracking-widest text-signal-indigo">
-                  MongoDB Cards Collection
-                </span>
-                <h2 className="text-xl font-bold text-white mt-0.5">Your Connected Credit Cards</h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Loaded from <code>GET /api/cards</code>. Click any card to inspect{' '}
-                  <code>GET /api/cards/:cardId</code>.
+                <h2 className="text-sm font-bold text-white">Connected Credit Cards</h2>
+                <p className="text-xs text-slate-400">
+                  Synced with MongoDB <code>cards</code> collection (<code>GET /api/cards</code>)
                 </p>
               </div>
-
               <div className="flex items-center gap-2.5">
                 <button
                   type="button"
                   onClick={loadUserCards}
-                  className="px-3.5 py-2 rounded-xl bg-navy-800 border border-slate-700 text-xs font-medium text-slate-200 hover:text-white inline-flex items-center gap-1.5"
+                  className="btn-secondary text-xs py-1.5 px-3"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loadingCards ? 'animate-spin' : ''}`} />
-                  <span>Refresh</span>
+                  {loadingCards ? 'Loading...' : 'Refresh'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowAddCardModal((v) => !v)}
-                  className="signal-btn-primary text-xs py-2 px-4"
+                  className="btn-primary text-xs py-1.5 px-3.5"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Card</span>
+                  + Add Card
                 </button>
               </div>
             </div>
 
-            {/* Add Card Modal Form */}
             {showAddCardModal && (
               <form
                 onSubmit={handleCreateCard}
-                className="mt-6 p-5 rounded-2xl bg-navy-900 border border-signal-indigo/40 space-y-4"
+                className="p-6 bg-[#0B1120] border-b border-[#1E2B48] space-y-4"
               >
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-white">
-                    Add New Credit Card (POST /api/cards)
-                  </h3>
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#7E8EF7]">
+                    New Card (POST /api/cards)
+                  </span>
                   <button
                     type="button"
                     onClick={() => setShowAddCardModal(false)}
@@ -339,20 +288,20 @@ export default function DashboardPage() {
                 </div>
 
                 {cardError && (
-                  <div className="p-3 rounded-xl bg-signal-coral/15 border border-signal-coral/40 text-xs text-signal-coral">
+                  <div className="p-3 rounded bg-[#F85C70]/10 border border-[#F85C70]/40 text-xs text-[#F85C70]">
                     {cardError}
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                  <div className="sm:col-span-2">
+                <div className="grid grid-cols-6 gap-3">
+                  <div className="col-span-2">
                     <label className="block text-[11px] text-slate-400 mb-1">Card Name</label>
                     <input
                       type="text"
                       required
                       value={newCard.cardName}
                       onChange={(e) => setNewCard({ ...newCard, cardName: e.target.value })}
-                      className="signal-input py-2 text-xs"
+                      className="field-input py-1.5 text-xs"
                     />
                   </div>
                   <div>
@@ -360,7 +309,7 @@ export default function DashboardPage() {
                     <select
                       value={newCard.network}
                       onChange={(e) => setNewCard({ ...newCard, network: e.target.value })}
-                      className="signal-input py-2 text-xs"
+                      className="field-input py-1.5 text-xs"
                     >
                       <option value="Visa">Visa</option>
                       <option value="Mastercard">Mastercard</option>
@@ -369,7 +318,7 @@ export default function DashboardPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">Last 4 Digits</label>
+                    <label className="block text-[11px] text-slate-400 mb-1">Last 4</label>
                     <input
                       type="text"
                       required
@@ -377,17 +326,17 @@ export default function DashboardPage() {
                       pattern="\d{4}"
                       value={newCard.last4}
                       onChange={(e) => setNewCard({ ...newCard, last4: e.target.value })}
-                      className="signal-input py-2 text-xs font-mono"
+                      className="field-input py-1.5 text-xs font-mono"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">Credit Limit ($)</label>
+                    <label className="block text-[11px] text-slate-400 mb-1">Limit ($)</label>
                     <input
                       type="number"
                       required
                       value={newCard.creditLimit}
                       onChange={(e) => setNewCard({ ...newCard, creditLimit: e.target.value })}
-                      className="signal-input py-2 text-xs"
+                      className="field-input py-1.5 text-xs"
                     />
                   </div>
                   <div>
@@ -398,171 +347,141 @@ export default function DashboardPage() {
                       placeholder="08/2029"
                       value={newCard.expirationDate}
                       onChange={(e) => setNewCard({ ...newCard, expirationDate: e.target.value })}
-                      className="signal-input py-2 text-xs font-mono"
+                      className="field-input py-1.5 text-xs font-mono"
                     />
                   </div>
                 </div>
 
                 <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={creatingCard}
-                    className="signal-btn-primary text-xs py-2 px-5"
-                  >
+                  <button type="submit" disabled={creatingCard} className="btn-primary text-xs">
                     {creatingCard ? 'Saving...' : 'Save Card'}
                   </button>
                 </div>
               </form>
             )}
 
-            {/* Cards Grid */}
-            <div className="mt-6">
-              {cards.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {cards.length > 0 ? (
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-[#1E2B48] text-slate-400 bg-[#0B1120]/60">
+                    <th className="py-3 px-6 font-medium">Card Name</th>
+                    <th className="py-3 px-4 font-medium">Network &amp; Number</th>
+                    <th className="py-3 px-4 font-medium">Status</th>
+                    <th className="py-3 px-4 font-medium text-right">Current Balance</th>
+                    <th className="py-3 px-4 font-medium text-right">Credit Limit</th>
+                    <th className="py-3 px-4 font-medium text-right">Available</th>
+                    <th className="py-3 px-6 font-medium text-right">APR / Exp</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1A2540]">
                   {cards.map((card) => (
-                    <div
+                    <tr
                       key={card._id}
                       onClick={() => handleInspectSingleCard(card._id)}
-                      className="cursor-pointer p-5 rounded-2xl bg-gradient-to-br from-navy-800 via-navy-850 to-navy-900 border border-slate-700/80 hover:border-signal-indigo shadow-lg flex flex-col justify-between space-y-4 transition-all"
+                      className="hover:bg-[#16213B]/60 cursor-pointer transition-colors"
                     >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <span className="text-[11px] font-semibold uppercase tracking-wider text-signal-indigo">
-                            {card.network}
-                          </span>
-                          <h3 className="text-lg font-bold text-white">{card.cardName}</h3>
-                        </div>
+                      <td className="py-3.5 px-6 font-semibold text-white">{card.cardName}</td>
+                      <td className="py-3.5 px-4 font-mono text-slate-300">
+                        {card.network} · {card.maskedNumber || `•••• ${card.last4}`}
+                      </td>
+                      <td className="py-3.5 px-4">
                         <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                          className={`px-2 py-0.5 rounded text-[11px] font-medium ${
                             card.status === 'active'
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                              : 'bg-signal-coral/20 text-signal-coral border border-signal-coral/30'
+                              ? 'bg-emerald-500/15 text-emerald-300'
+                              : 'bg-[#F85C70]/15 text-[#F85C70]'
                           }`}
                         >
                           {card.status || 'active'}
                         </span>
-                      </div>
-
-                      <div className="font-mono text-base tracking-widest text-slate-200">
-                        {card.maskedNumber || `•••• ${card.last4}`}
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800 text-xs">
-                        <div>
-                          <span className="text-slate-400 block text-[10px]">Balance</span>
-                          <span className="font-bold text-white">
-                            ${Number(card.currentBalance).toLocaleString()}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 block text-[10px]">Limit</span>
-                          <span className="font-semibold text-slate-200">
-                            ${Number(card.creditLimit).toLocaleString()}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 block text-[10px]">APR / Exp</span>
-                          <span className="font-semibold text-slate-300">
-                            {card.apr}% · {card.expirationDate}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono font-semibold text-white tabular-nums">
+                        ${Number(card.currentBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-slate-300 tabular-nums">
+                        ${Number(card.creditLimit).toLocaleString()}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-emerald-400 tabular-nums">
+                        ${Number(card.availableCredit ?? card.creditLimit - card.currentBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3.5 px-6 text-right font-mono text-slate-400 tabular-nums">
+                        {card.apr}% · {card.expirationDate}
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              ) : (
-                <div className="p-6 rounded-xl bg-navy-900/70 border border-slate-800 text-center text-sm text-slate-400">
-                  No cards found for @{user.username}. Click &quot;Add Card&quot; above to add one!
-                </div>
-              )}
+                </tbody>
+              </table>
+            ) : (
+              <div className="p-8 text-center text-xs text-slate-400">
+                No credit cards found for @{user.username}. Click &quot;+ Add Card&quot; to add one.
+              </div>
+            )}
 
-              {selectedCardDetail && (
-                <div className="mt-4 p-4 rounded-xl bg-navy-950 border border-signal-indigo/40 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-mono text-signal-indigo font-semibold">
-                      GET /api/cards/{selectedCardDetail._id}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCardDetail(null)}
-                      className="text-slate-400 hover:text-white"
-                    >
-                      Close
-                    </button>
-                  </div>
-                  <pre className="text-[11px] font-mono text-emerald-300 overflow-x-auto">
-                    {JSON.stringify(selectedCardDetail, null, 2)}
-                  </pre>
+            {selectedCardDetail && (
+              <div className="p-4 bg-[#070B14] border-t border-[#1E2B48] space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-mono text-[#7E8EF7]">
+                    GET /api/cards/{selectedCardDetail._id}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCardDetail(null)}
+                    className="text-slate-400 hover:text-white"
+                  >
+                    Close
+                  </button>
                 </div>
-              )}
-            </div>
+                <pre className="text-[11px] font-mono text-emerald-300 overflow-x-auto">
+                  {JSON.stringify(selectedCardDetail, null, 2)}
+                </pre>
+              </div>
+            )}
           </div>
 
-          {/* Cardholder SpendSignal Analytics Widgets (Best Card Recommendation, ROI, Leakage) */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Widget 1: Best Card Recommendation */}
-            <div className="signal-card p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-bold text-white">Best Card for Next Purchase</h3>
-                <span className="px-2 py-0.5 rounded-full bg-signal-indigo/20 text-signal-indigo text-[10px] font-bold">
-                  3x–6% Back
-                </span>
+          {/* 3 Cardholder Optimization Panels */}
+          <div className="grid grid-cols-3 gap-5">
+            <div className="panel p-5 space-y-3">
+              <div className="flex items-center justify-between border-b border-[#1E2B48] pb-2.5">
+                <span className="text-sm font-bold text-white">Best Card Recommendation</span>
+                <span className="text-xs font-mono text-[#F85C70]">3x Dining</span>
               </div>
-              <div className="p-4 rounded-xl bg-navy-900 border border-signal-indigo/40 space-y-2">
-                <div className="text-xs text-slate-400">Recommended Card:</div>
-                <div className="text-base font-bold text-white">
+              <div className="text-xs text-slate-300 leading-relaxed">
+                Recommended for next purchase:{' '}
+                <strong className="text-white">
                   {cards[0]?.cardName || 'Everyday Cash Visa'}
-                </div>
-                <p className="text-xs text-slate-300">
-                  Use this card at <span className="text-white font-semibold">Groceries & Dining</span>{' '}
-                  to maximize your reward multiplier instead of earning 1% base points.
-                </p>
+                </strong>
+                . Earns 3x–6% category cashback vs 1% standard rate.
               </div>
             </div>
 
-            {/* Widget 2: Category Leakage Breakdown */}
-            <div className="signal-card p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-bold text-white">Category Reward Leakage</h3>
-                <span className="text-xs font-bold text-signal-coral">Missed: $120/yr</span>
+            <div className="panel p-5 space-y-3">
+              <div className="flex items-center justify-between border-b border-[#1E2B48] pb-2.5">
+                <span className="text-sm font-bold text-white">Category Leakage</span>
+                <span className="text-xs font-mono text-[#F85C70]">Missed: $120/yr</span>
               </div>
-              <div className="space-y-2.5 text-xs">
+              <div className="space-y-2 text-xs">
                 {[
-                  { label: 'Dining (3x eligible)', pct: '65%' },
-                  { label: 'Travel ($100 credit unused)', pct: '80%' },
-                  { label: 'Groceries (6% eligible)', pct: '40%' },
+                  { label: 'Dining', pct: '65%' },
+                  { label: 'Travel ($100 credit)', pct: '80%' },
                 ].map((item) => (
-                  <div key={item.label} className="space-y-1">
-                    <div className="flex justify-between text-slate-300">
-                      <span>{item.label}</span>
-                      <span>{item.pct}</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-navy-900 overflow-hidden">
-                      <div
-                        style={{ width: item.pct }}
-                        className="h-full bg-signal-coral rounded-full"
-                      />
+                  <div key={item.label} className="flex items-center gap-3">
+                    <span className="w-32 text-slate-400">{item.label}</span>
+                    <div className="flex-1 h-2 bg-[#090E1A] rounded-xs overflow-hidden">
+                      <div style={{ width: item.pct }} className="h-full bg-[#F85C70]" />
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Widget 3: Next Spend Prediction */}
-            <div className="signal-card p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-bold text-white">Next Spend Prediction</h3>
-                <span className="text-xs font-semibold text-signal-indigo">AI Forecast</span>
+            <div className="panel p-5 space-y-3">
+              <div className="flex items-center justify-between border-b border-[#1E2B48] pb-2.5">
+                <span className="text-sm font-bold text-white">Next Spend Forecast</span>
+                <span className="text-xs font-mono text-[#7E8EF7]">7-Day Window</span>
               </div>
-              <div className="p-4 rounded-xl bg-navy-900 border border-slate-800 space-y-2">
-                <div className="text-xs text-slate-400">Upcoming 7-Day Window</div>
-                <div className="text-sm font-bold text-white">
-                  Grocery purchase ($120–$150) predicted next week
-                </div>
-                <p className="text-xs text-slate-400">
-                  Route to <span className="text-signal-indigo font-semibold">Everyday Cash</span>{' '}
-                  for optimal cashback.
-                </p>
+              <div className="text-xs text-slate-300 leading-relaxed">
+                Predicted grocery spend of <strong className="text-white">$120–$150</strong> next
+                week. Route to your highest grocery multiplier card.
               </div>
             </div>
           </div>
@@ -570,128 +489,99 @@ export default function DashboardPage() {
       )}
 
       {/* =====================================================================
-          ROLE VIEW 2: MERCHANT PORTAL (activeRoleView === 'merchant' — Mockup 3)
+          ROLE VIEW 2: MERCHANT PORTAL
       ===================================================================== */}
       {activeRoleView === 'merchant' && (
-        <div className="signal-card overflow-hidden">
-          <div className="px-6 py-4 bg-navy-900/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4">
-            <SpendSignalLogo size="sm" portalBadge="Merchant Portal" />
-            <div className="flex items-center gap-3">
-              <span className="relative p-1.5 rounded-lg bg-navy-800 text-slate-300">
-                <Bell className="w-4 h-4" />
-                <span className="w-2 h-2 rounded-full bg-signal-coral absolute top-1 right-1" />
-              </span>
-              <span className="px-3 py-1 rounded-lg bg-navy-800 border border-slate-700 text-xs text-slate-200">
-                November 2026 ▾
-              </span>
-            </div>
+        <div className="panel overflow-hidden">
+          <div className="px-6 py-4 bg-[#0D1426] border-b border-[#1E2B48] flex items-center justify-between">
+            <SpendSignalLogo size="sm" portalBadge="Merchant Portal · Spend Opportunity Report" />
+            <span className="text-xs text-slate-400 font-mono">
+              Metro Atlanta Area · November 2026
+            </span>
           </div>
 
-          <div className="p-6 sm:p-8 space-y-6">
-            <div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
-                Spend Opportunity Report
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-                Metro Atlanta Area • Consented Panel Data
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-5 rounded-2xl bg-navy-900/90 border border-slate-800 space-y-1.5">
-                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  YOUR SHARE
-                </div>
-                <div className="text-3xl font-extrabold text-white">18.4%</div>
-                <div className="text-xs text-slate-400">of observed category spend</div>
+          <div className="p-6 space-y-6">
+            <div className="grid grid-cols-4 gap-4">
+              <div className="panel-inset p-4">
+                <div className="text-[11px] font-semibold uppercase text-slate-400">YOUR SHARE</div>
+                <div className="text-2xl font-bold text-white tabular-nums mt-1">18.4%</div>
+                <div className="text-xs text-slate-500 mt-0.5">of observed category spend</div>
               </div>
-
-              <div className="p-5 rounded-2xl bg-navy-900/90 border border-slate-800 space-y-1.5">
-                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  LEAKAGE
+              <div className="panel-inset p-4">
+                <div className="text-[11px] font-semibold uppercase text-slate-400">LEAKAGE</div>
+                <div className="text-2xl font-bold text-[#F85C70] tabular-nums mt-1">
+                  $245,000 / mo
                 </div>
-                <div className="text-3xl font-extrabold text-signal-coral">
-                  $245,000 <span className="text-base font-semibold">/ mo</span>
-                </div>
-                <div className="text-xs text-slate-400">to competitor groups</div>
+                <div className="text-xs text-slate-500 mt-0.5">to competitor groups</div>
               </div>
-
-              <div className="p-5 rounded-2xl bg-navy-900/90 border border-slate-800 space-y-1.5">
-                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <div className="panel-inset p-4">
+                <div className="text-[11px] font-semibold uppercase text-slate-400">
                   CATEGORY SPEND
                 </div>
-                <div className="text-3xl font-extrabold text-signal-indigo">
-                  $1.33M <span className="text-base font-semibold">/ mo</span>
+                <div className="text-2xl font-bold text-[#7E8EF7] tabular-nums mt-1">
+                  $1.33M / mo
                 </div>
-                <div className="text-xs text-slate-400">Your metro, panel-observed</div>
+                <div className="text-xs text-slate-500 mt-0.5">Your metro, panel-observed</div>
               </div>
-
-              <div className="p-5 rounded-2xl bg-navy-900/90 border border-slate-800 space-y-1.5">
-                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <div className="panel-inset p-4">
+                <div className="text-[11px] font-semibold uppercase text-slate-400">
                   READY TO BUY
                 </div>
-                <div className="text-3xl font-extrabold text-white">1,450</div>
-                <div className="text-xs text-slate-400">Households in purchase window</div>
+                <div className="text-2xl font-bold text-white tabular-nums mt-1">1,450</div>
+                <div className="text-xs text-slate-500 mt-0.5">Households in purchase window</div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              <div className="lg:col-span-6 space-y-6">
-                <div className="p-5 rounded-2xl bg-navy-900/90 border border-slate-800 space-y-4">
+            <div className="grid grid-cols-12 gap-5">
+              <div className="col-span-6 space-y-5">
+                <div className="panel-inset p-5 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-base font-bold text-white">Household Repurchase Timing</h3>
-                    <span className="px-2.5 py-1 rounded-md bg-navy-800 border border-slate-700 text-[11px] text-slate-300">
-                      Peak purchase window
+                    <span className="text-sm font-bold text-white">
+                      Household Repurchase Timing
                     </span>
+                    <span className="text-xs text-slate-400">Peak purchase window (Week 8)</span>
                   </div>
-                  <svg viewBox="0 0 360 150" className="w-full h-40">
+                  <svg viewBox="0 0 360 130" className="w-full h-36">
                     <path
-                      d="M 20 130 C 60 30, 100 30, 145 95 C 190 120, 260 65, 340 120"
+                      d="M 20 115 C 60 25, 100 25, 145 85 C 190 105, 260 55, 340 108"
                       fill="none"
                       stroke="#7E8EF7"
-                      strokeWidth="2.5"
+                      strokeWidth="2"
                     />
                     <path
-                      d="M 20 130 C 90 105, 160 120, 215 45 C 255 45, 290 95, 340 122"
+                      d="M 20 115 C 90 92, 160 105, 215 35 C 255 35, 290 82, 340 110"
                       fill="none"
                       stroke="#F85C70"
-                      strokeWidth="2.5"
+                      strokeWidth="2"
                     />
-                    <circle cx="215" cy="45" r="5" fill="#F85C70" stroke="#fff" strokeWidth="2" />
+                    <circle cx="215" cy="35" r="4" fill="#F85C70" />
                   </svg>
-                  <div className="text-center text-xs text-slate-400">0 to 12 weeks</div>
                 </div>
 
-                <div className="p-5 rounded-2xl bg-navy-900/90 border border-slate-800 space-y-3">
-                  <div className="text-sm font-bold text-white">Recommended Offer Card</div>
-                  <div className="flex flex-wrap items-center justify-between gap-4 border-l-4 border-signal-coral pl-4">
-                    <div>
-                      <span className="inline-block px-2.5 py-0.5 rounded-full bg-signal-coral text-white text-[10px] font-bold uppercase mb-1">
-                        RECOMMENDED OFFER
-                      </span>
-                      <div className="text-2xl font-extrabold text-white">$15 off $100</div>
-                      <div className="text-xs text-slate-400">1,450 households in their window</div>
+                <div className="panel-inset p-5 flex items-center justify-between border-l-2 border-l-[#F85C70]">
+                  <div>
+                    <span className="text-[10px] font-mono uppercase text-[#F85C70] block">
+                      Recommended Offer
+                    </span>
+                    <div className="text-lg font-bold text-white">
+                      $15 off $100 · 1,450 households in window
                     </div>
-                    <button
-                      type="button"
-                      className="px-4 py-2.5 rounded-xl bg-signal-indigo hover:bg-signal-indigoHover text-navy-950 font-bold text-xs transition-all"
-                    >
-                      Launch Campaign
-                    </button>
                   </div>
+                  <button type="button" className="btn-primary text-xs">
+                    Launch Campaign
+                  </button>
                 </div>
               </div>
 
-              <div className="lg:col-span-6 p-5 rounded-2xl bg-navy-900/90 border border-slate-800 flex flex-col justify-between space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-base font-bold text-white">90-Day Pilot Lift</h3>
-                  <span className="text-xs font-semibold text-slate-200">
-                    Incremental Revenue Lift:{' '}
-                    <span className="text-emerald-400 font-bold">+24.3%</span>
+              <div className="col-span-6 panel-inset p-5 flex flex-col justify-between space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-white">90-Day Pilot Lift</span>
+                  <span className="text-xs font-mono text-emerald-400">
+                    Incremental Revenue Lift: +24.3%
                   </span>
                 </div>
 
-                <div className="h-52 flex items-end justify-between gap-2 px-2 border-b border-slate-800 pb-2">
+                <div className="h-44 flex items-end justify-between gap-2 px-2 border-b border-[#1A2540] pb-2">
                   {[
                     { day: '1', offer: 25, holdout: 42 },
                     { day: '10', offer: 30, holdout: 56 },
@@ -706,31 +596,28 @@ export default function DashboardPage() {
                   ].map((bar) => (
                     <div
                       key={bar.day}
-                      className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end"
+                      className="flex-1 flex flex-col items-center gap-1 h-full justify-end"
                     >
                       <div className="w-full flex items-end justify-center gap-1 h-full">
-                        <span
-                          style={{ height: `${bar.offer}%` }}
-                          className="w-2.5 sm:w-3 rounded-t bg-signal-coral"
-                        />
+                        <span style={{ height: `${bar.offer}%` }} className="w-2.5 bg-[#F85C70]" />
                         <span
                           style={{ height: `${bar.holdout}%` }}
-                          className="w-2.5 sm:w-3 rounded-t bg-signal-indigo/80"
+                          className="w-2.5 bg-[#7E8EF7]/80"
                         />
                       </div>
-                      <span className="text-[10px] text-slate-400">{bar.day}</span>
+                      <span className="text-[10px] text-slate-500 tabular-nums">{bar.day}</span>
                     </div>
                   ))}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3.5 rounded-xl bg-navy-950 border border-slate-800">
-                    <div className="text-xs text-slate-400">Offer Group Revenue</div>
-                    <div className="text-xl font-extrabold text-white mt-0.5">$1.66M</div>
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div className="p-3 rounded bg-[#11192E] border border-[#1E2B48] flex justify-between">
+                    <span className="text-slate-400">Offer Group Revenue</span>
+                    <strong className="text-white tabular-nums">$1.66M</strong>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-navy-950 border border-slate-800">
-                    <div className="text-xs text-slate-400">Holdout Group Revenue</div>
-                    <div className="text-xl font-extrabold text-slate-300 mt-0.5">$1.33M</div>
+                  <div className="p-3 rounded bg-[#11192E] border border-[#1E2B48] flex justify-between">
+                    <span className="text-slate-400">Holdout Group Revenue</span>
+                    <strong className="text-slate-300 tabular-nums">$1.33M</strong>
                   </div>
                 </div>
               </div>
@@ -740,40 +627,31 @@ export default function DashboardPage() {
       )}
 
       {/* =====================================================================
-          ROLE VIEW 3: PARTNER PORTAL (activeRoleView === 'partner' — Mockup 1)
+          ROLE VIEW 3: PARTNER PORTAL
       ===================================================================== */}
       {activeRoleView === 'partner' && (
-        <div className="signal-card overflow-hidden">
-          <div className="px-6 py-4 bg-navy-900/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4">
+        <div className="panel overflow-hidden">
+          <div className="px-6 py-4 bg-[#0D1426] border-b border-[#1E2B48] flex items-center justify-between">
             <SpendSignalLogo size="sm" uppercase={true} portalBadge="Partner Portal" />
-            <div className="flex items-center gap-6 text-xs font-medium text-slate-400">
-              <span className="text-white border-b-2 border-signal-indigo pb-1 font-semibold">
-                API Sandbox
-              </span>
-              <span>White-Label Builder</span>
-              <span>Cohort Analytics</span>
-            </div>
+            <span className="text-xs text-slate-400 font-mono">
+              API Sandbox · White-Label Builder · Cohort Analytics
+            </span>
           </div>
 
-          <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* API Sandbox */}
-            <div className="lg:col-span-4 rounded-2xl bg-navy-900/90 border border-slate-800 p-5 flex flex-col justify-between space-y-4">
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-bold text-white">API Sandbox</h3>
-                  <p className="text-xs text-slate-400">Test endpoints console</p>
-                </div>
-
-                <div className="grid grid-cols-12 gap-2 rounded-xl bg-navy-950 border border-slate-800 p-2.5">
-                  <div className="col-span-5 space-y-1 pr-1 border-r border-slate-800/80">
+          <div className="p-6 grid grid-cols-12 gap-5">
+            <div className="col-span-4 panel-inset p-5 flex flex-col justify-between space-y-4">
+              <div className="space-y-3">
+                <div className="text-sm font-bold text-white">API Sandbox</div>
+                <div className="grid grid-cols-12 gap-2 rounded bg-[#070B14] border border-[#1A2540] p-2">
+                  <div className="col-span-5 space-y-1 border-r border-[#1A2540] pr-1">
                     {Object.keys(SANDBOX_ENDPOINTS).map((ep) => (
                       <button
                         key={ep}
                         type="button"
                         onClick={() => setSelectedEndpoint(ep)}
-                        className={`w-full text-left px-2.5 py-2 rounded-lg text-xs font-mono transition-colors ${
+                        className={`w-full text-left px-2 py-1.5 rounded text-xs font-mono ${
                           selectedEndpoint === ep
-                            ? 'bg-signal-indigo/20 text-white font-semibold border-l-2 border-signal-indigo'
+                            ? 'bg-[#182442] text-white font-semibold'
                             : 'text-slate-400 hover:text-slate-200'
                         }`}
                       >
@@ -782,7 +660,7 @@ export default function DashboardPage() {
                     ))}
                   </div>
                   <div className="col-span-7 pl-1 overflow-x-auto">
-                    <pre className="text-[11px] font-mono text-slate-200 leading-relaxed">
+                    <pre className="text-[11px] font-mono text-slate-300">
                       {SANDBOX_ENDPOINTS[selectedEndpoint].request}
                     </pre>
                   </div>
@@ -792,58 +670,67 @@ export default function DashboardPage() {
                   type="button"
                   onClick={() => {
                     setSandboxRunning(true);
-                    setTimeout(() => setSandboxRunning(false), 300);
+                    setTimeout(() => setSandboxRunning(false), 250);
                   }}
-                  className="w-full py-2.5 rounded-xl bg-signal-indigo hover:bg-signal-indigoHover text-navy-950 font-bold text-sm transition-all shadow-glow"
+                  className="btn-primary w-full text-xs py-2"
                 >
-                  {sandboxRunning ? 'Running Request...' : 'Test Request'}
+                  {sandboxRunning ? 'Executing...' : 'Test Request'}
                 </button>
               </div>
 
-              <div className="rounded-xl bg-navy-950 border border-slate-800 p-3.5 space-y-1.5">
-                <div className="text-xs font-semibold text-slate-300">Response</div>
-                <pre className="text-[11px] font-mono text-emerald-300 overflow-x-auto">
+              <div className="space-y-1">
+                <div className="text-xs text-slate-400">Response</div>
+                <pre className="p-3 rounded bg-[#070B14] border border-[#1A2540] text-[11px] font-mono text-emerald-300 overflow-x-auto">
                   {SANDBOX_ENDPOINTS[selectedEndpoint].response}
                 </pre>
               </div>
             </div>
 
-            {/* White-Label Preview */}
-            <div className="lg:col-span-4 rounded-2xl bg-navy-900/90 border border-slate-800 p-5 space-y-4">
-              <h3 className="text-lg font-bold text-white">White-Label Preview</h3>
-              <div className="rounded-[2rem] bg-navy-950 border-2 border-slate-700 p-3.5 max-w-[270px] mx-auto space-y-3 shadow-xl">
-                <div className="flex items-center justify-between text-[10px] text-slate-400 px-2">
-                  <span>9:41</span>
-                  <span className="font-semibold text-slate-300">Apex Bank</span>
-                  <span>•••</span>
-                </div>
-                <div className="bg-slate-200 text-navy-950 rounded-xl p-3 space-y-1">
-                  <div className="text-sm font-extrabold">Checkout</div>
-                  <div className="flex items-center justify-between text-xs text-slate-700">
-                    <span>Total amount</span>
-                    <span className="font-bold">$5.30</span>
+            <div className="col-span-4 panel-inset p-5 flex flex-col justify-between space-y-4">
+              <div className="space-y-3">
+                <div className="text-sm font-bold text-white">White-Label Web Preview</div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex items-center justify-between bg-[#11192E] px-2.5 py-1.5 rounded border border-[#1E2B48]">
+                    <span className="text-slate-400">Branding</span>
+                    <span className="font-mono text-slate-200">White-Label</span>
+                  </div>
+                  <div className="flex items-center justify-between bg-[#11192E] px-2.5 py-1.5 rounded border border-[#1E2B48]">
+                    <span className="text-slate-400">Accent</span>
+                    <button
+                      type="button"
+                      onClick={() => setWhiteLabelColorOn((v) => !v)}
+                      className={`w-7 h-4 rounded-full px-0.5 flex items-center ${
+                        whiteLabelColorOn ? 'bg-[#7E8EF7] justify-end' : 'bg-slate-700'
+                      }`}
+                    >
+                      <span className="w-3 h-3 rounded-full bg-white" />
+                    </button>
                   </div>
                 </div>
-                <div className="p-3 rounded-xl bg-navy-800 border border-signal-indigo/60 shadow-glow space-y-2.5">
-                  <div className="text-[11px] leading-tight">
-                    <div className="text-slate-300">SpendSignal Recommendation:</div>
-                    <div className="font-bold text-white">Use your Blue Cash Preferred</div>
-                    <div className="text-slate-300 text-[10px]">
-                      Earns <span className="text-signal-indigo font-semibold">6% Cash Back</span>{' '}
-                      on Groceries
-                    </div>
+              </div>
+
+              <div className="p-4 rounded bg-[#11192E] border border-[#263659] space-y-3">
+                <div className="flex items-center justify-between text-xs border-b border-[#1E2B48] pb-2">
+                  <span className="font-semibold text-white">Apex Bank Web Checkout</span>
+                  <span className="font-mono text-slate-200">$5.30</span>
+                </div>
+                <div className="p-3 rounded bg-[#16213B] border border-[#7E8EF7]/50 space-y-2">
+                  <div className="text-xs font-bold text-white">Use your Blue Cash Preferred</div>
+                  <div className="text-[11px] text-slate-300">
+                    Earns <span className="text-[#7E8EF7] font-semibold">6% Cash Back</span> on
+                    Groceries
                   </div>
                   <div className="flex items-center justify-between pt-1">
                     <button
                       type="button"
                       onClick={() => setQuickPayOn((v) => !v)}
-                      className={`w-8 h-4 rounded-full px-0.5 flex items-center ${
-                        quickPayOn ? 'bg-signal-indigo justify-end' : 'bg-slate-700'
+                      className={`w-7 h-4 rounded-full px-0.5 flex items-center ${
+                        quickPayOn ? 'bg-[#7E8EF7] justify-end' : 'bg-slate-700'
                       }`}
                     >
                       <span className="w-3 h-3 rounded-full bg-white" />
                     </button>
-                    <span className="px-2.5 py-0.5 rounded bg-navy-900 border border-signal-indigo/50 text-[10px] text-signal-indigo font-semibold">
+                    <span className="px-2 py-0.5 rounded bg-[#090E1A] border border-[#7E8EF7]/40 text-[10px] text-[#7E8EF7] font-mono">
                       Quick Pay
                     </span>
                   </div>
@@ -851,41 +738,44 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Pilot Cohort vs Control Segment */}
-            <div className="lg:col-span-4 rounded-2xl bg-navy-900/90 border border-slate-800 p-5 flex flex-col justify-between space-y-4">
+            <div className="col-span-4 panel-inset p-5 flex flex-col justify-between space-y-4">
               <div>
-                <h3 className="text-lg font-bold text-white">Pilot Cohort vs Control Segment</h3>
-                <p className="text-xs text-slate-400">Engaged Users &amp; Top-of-Wallet Lift</p>
+                <div className="text-sm font-bold text-white">
+                  Pilot Cohort vs Control Segment
+                </div>
+                <div className="text-xs text-slate-400">Engaged Users &amp; Top-of-Wallet Lift</div>
                 <div className="grid grid-cols-2 gap-3 mt-4">
                   <div>
-                    <div className="text-[10px] uppercase text-slate-400">TOP-OF-WALLET LIFT:</div>
-                    <div className="text-2xl font-extrabold text-signal-indigo mt-0.5">
+                    <div className="text-[10px] uppercase text-slate-400">TOP-OF-WALLET LIFT</div>
+                    <div className="text-2xl font-bold text-[#7E8EF7] tabular-nums mt-0.5">
                       +14.8% ↑
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase text-slate-400">DAILY ENGAGEMENT:</div>
-                    <div className="text-xl font-extrabold text-signal-indigo mt-0.5">84.3%</div>
-                    <div className="text-[11px] text-slate-400">vs. 41.5% (Control)</div>
+                    <div className="text-[10px] uppercase text-slate-400">DAILY ENGAGEMENT</div>
+                    <div className="text-2xl font-bold text-[#7E8EF7] tabular-nums mt-0.5">
+                      84.3%
+                    </div>
+                    <div className="text-[11px] text-slate-500">vs. 41.5% Control</div>
                   </div>
                 </div>
               </div>
 
-              <svg viewBox="0 0 300 150" className="w-full h-36">
+              <svg viewBox="0 0 300 130" className="w-full h-32">
                 <path
-                  d="M 25 125 Q 65 105, 95 112 T 165 95 T 235 78 T 288 85"
+                  d="M 20 110 Q 65 95, 95 100 T 165 85 T 235 70 T 288 75"
                   fill="none"
-                  stroke="#64748b"
-                  strokeWidth="2"
+                  stroke="#475569"
+                  strokeWidth="1.75"
                   strokeDasharray="4 4"
                 />
                 <path
-                  d="M 25 122 Q 65 95, 95 100 T 165 55 T 235 32 T 288 22"
+                  d="M 20 108 Q 65 85, 95 90 T 165 48 T 235 28 T 288 18"
                   fill="none"
                   stroke="#7E8EF7"
-                  strokeWidth="3"
+                  strokeWidth="2.5"
                 />
-                <circle cx="288" cy="22" r="4" fill="#7E8EF7" />
+                <circle cx="288" cy="18" r="3.5" fill="#7E8EF7" />
               </svg>
             </div>
           </div>
@@ -894,4 +784,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
