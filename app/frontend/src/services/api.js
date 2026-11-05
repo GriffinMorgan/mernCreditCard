@@ -30,15 +30,8 @@ export function setApiEnvKey(envKey) {
 }
 
 export function getApiBaseUrl() {
-  const saved = localStorage.getItem(STORAGE_ENV_KEY);
-  if (saved && API_ENVIRONMENTS[saved]) {
-    return API_ENVIRONMENTS[saved].baseUrl;
-  }
-  const envOverride = import.meta.env.VITE_API_URL;
-  if (envOverride) {
-    return envOverride.replace(/\/+$/, '');
-  }
-  return API_ENVIRONMENTS.production.baseUrl;
+  const envKey = getApiEnvKey();
+  return API_ENVIRONMENTS[envKey]?.baseUrl || API_ENVIRONMENTS.production.baseUrl;
 }
 
 async function request(path, options = {}) {
