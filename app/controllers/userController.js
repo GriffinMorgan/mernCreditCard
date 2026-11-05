@@ -29,7 +29,8 @@ exports.createUser = async (req, res, next) => {
       lastName: String(lastName),
       username: String(username),
       passwordHash: String(password),
-      email: String(email)
+      email: String(email),
+      role: 'user'
     });
 
     // A new user is logged in right away, so the response includes a token.
