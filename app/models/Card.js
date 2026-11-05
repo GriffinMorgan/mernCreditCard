@@ -21,6 +21,11 @@ const cardSchema = new mongoose.Schema(
       trim: true,
       maxlength: [50, 'Card name must be 50 characters or fewer']
     },
+    cardProduct: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CardProduct',
+      required: [true, 'connected card is required'],
+    },  
     network: {
       type: String,
       required: [true, 'Network is required'],

@@ -9,6 +9,7 @@ const router = express.Router();
 router.use(requireAuth);
 
 router.param('cardId', validateObjectId);
+router.param('userId', validateObjectId);
 
 // POST /api/cards       - add a card to the logged-in user's account
 router.post('/', cards.createCard);
@@ -19,4 +20,6 @@ router.get('/', cards.getCards);
 // GET  /api/cards/:cardId - one card, only if it belongs to the user
 router.get('/:cardId', cards.getCard);
 
+// DELETE /api/cards/delete
+router.get('/', cards.deleteCard);
 module.exports = router;

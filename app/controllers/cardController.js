@@ -1,29 +1,48 @@
 const Card = require('../models/Card');
+const mongoose = require('mongoose');
+const { isValidExpirationFormat, isExpired } = require('../config/utils');
+const CardProduct = require('../models/CardProduct');
 // POST
 // /api/cards/createCard
 exports.createCard = async (req, res, next) => {
     try{
-        const { cardName = '', network, last4, creditLimit, currentBalance = 0, apr, expirationDate, status} = req.body || {};
+        const { cardName = '', cardProduct, last4, creditLimit, currentBalance = 0, apr, expirationDate} = req.body || {};
+        
         
         // Frontend needs to have these fields + apr:
-        if (!cardName || !network || !last4 || creditLimit == null || apr == null || !expirationDate){
+        if (!cardName || !cardProduct || !last4 || creditLimit == null || apr == null || !expirationDate){
             return res.status(400).json({error: 'cardName, network, last4, creditLimit, apr and expirationDate are required'}); 
-        }      
-        if (await Card.exists({ userId : req.userId, network: String(network), last4: String(last4)})){
+        }
+        if (!isValidExpirationFormat(expirationDate)){
+            return res.status(400).json({error: 'Expiration date must be in MMMM/YY format'});
+        }
+        if (await Card.exists({ userId : req.userId, last4: String(last4)})){
+            return res.status(409).json({ error: 'This card already exists' });
+        }
+        
+        const product = await CardProduct.findById(cardProduct);
+        if (!product) {
+            return res.status(404).json({ error: 'Card product not found' });
+        }
+
+        if (await Card.exists({ userId: req.userId, network: product.network, last4: String(last4) })) {
             return res.status(409).json({ error: 'This card already exists' });
         }
 
         const card = await Card.create({
             userId:         req.userId,
             cardName:       String(cardName),
-            network:        String(network),
+            cardProduct:    product._id,
+            network:        product.network,
             last4:          String(last4),
             creditLimit:    String(creditLimit),
             currentBalance: String(currentBalance),
             apr:            String(apr),
-            expirationDate: String(expirationDate)
+            expirationDate: String(expirationDate),
+            status:         isExpired(expirationDate) ? "closed" : "active"
         });
-
+        
+        await card.populate('cardProduct');
         res
             .status(201)
             .location(`/api/users/${card.id}`)
