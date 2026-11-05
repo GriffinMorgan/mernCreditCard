@@ -2,7 +2,6 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import SpendSignalLogo from './SpendSignalLogo';
 import { useAuth } from '../context/AuthContext';
-import { API_ENVIRONMENTS } from '../services/api';
 
 export default function Navbar() {
   const {
@@ -12,7 +11,7 @@ export default function Navbar() {
     apiEnvKey,
     changeApiEnv,
     backendStatus,
-    checkBackendHealth,
+    checkHealth,
   } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -40,50 +39,53 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Right: Environment Selector + Session Actions */}
+        {/* Right: API Target & Session Actions */}
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-[#11192E] border border-[#1E2B48] rounded-md px-2.5 py-1 text-xs">
-            <span className="text-slate-500">API</span>
-            <select
-              aria-label="Select API Environment"
-              value={apiEnvKey}
-              onChange={(e) => changeApiEnv(e.target.value)}
-              className="bg-transparent text-slate-300 font-medium focus:outline-none cursor-pointer"
-            >
-              {Object.values(API_ENVIRONMENTS).map((env) => (
-                <option key={env.id} value={env.id} className="bg-[#090E1A] text-slate-200">
-                  {env.id === 'local' ? 'localhost:5000' : 'mern.teedlej.com'}
-                </option>
-              ))}
-            </select>
-
+          {/* Clean API Connection Indicator */}
+          <div className="flex items-center gap-2 bg-[#0D1424] border border-[#1E2B48] rounded-md px-2.5 py-1 text-xs">
             <button
               type="button"
-              onClick={checkBackendHealth}
-              title="Click to ping GET /api/ping"
-              className="inline-flex items-center gap-1.5 pl-2 border-l border-[#1E2B48] text-slate-400 hover:text-slate-200"
+              onClick={checkHealth}
+              title="Click to test API connection"
+              className="flex items-center gap-1.5 text-slate-300 hover:text-white"
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
-                  backendStatus.state === 'online'
+                  backendStatus.online === true
                     ? 'bg-emerald-400'
-                    : backendStatus.state === 'checking'
-                    ? 'bg-amber-400'
-                    : 'bg-[#F85C70]'
+                    : backendStatus.online === false
+                    ? 'bg-[#F85C70]'
+                    : 'bg-amber-400'
                 }`}
               />
-              <span className="tabular-nums text-[11px]">
-                {backendStatus.state === 'online'
+              <span className="font-mono text-[11px] text-slate-400">
+                {backendStatus.online === true
                   ? `${backendStatus.latencyMs}ms`
-                  : backendStatus.state === 'checking'
-                  ? '...'
-                  : 'offline'}
+                  : backendStatus.online === false
+                  ? 'Offline'
+                  : 'Checking'}
               </span>
             </button>
+
+            <span className="text-[#1E2B48]">|</span>
+
+            <select
+              value={apiEnvKey}
+              onChange={(e) => changeApiEnv(e.target.value)}
+              className="bg-transparent text-slate-300 text-xs font-medium focus:outline-none cursor-pointer"
+              aria-label="Select API Environment"
+            >
+              <option value="local" className="bg-[#0D1424] text-white">
+                Local (:5000)
+              </option>
+              <option value="production" className="bg-[#0D1424] text-white">
+                Production
+              </option>
+            </select>
           </div>
 
           {isAuthenticated ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 pl-2 border-l border-[#1A2540]">
               <span className="text-xs text-slate-400">
                 Signed in as <strong className="text-slate-200">@{user.username}</strong>
               </span>
@@ -104,7 +106,7 @@ export default function Navbar() {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 pl-2 border-l border-[#1A2540]">
               {!isLogin ? (
                 <>
                   <Link to="/login" className="btn-secondary text-xs py-1.5 px-3.5">

@@ -10,7 +10,7 @@ export default function LandingPage() {
   return (
     <div className="max-w-[1400px] mx-auto px-8 py-12 space-y-16">
       {/* =====================================================================
-          TOP EDITORIAL HEADER (Left-aligned, solid typography, no gradient slop)
+          TOP EDITORIAL HEADER
       ===================================================================== */}
       <section className="grid grid-cols-12 gap-8 items-end border-b border-[#1A2540] pb-12">
         <div className="col-span-8 space-y-4">
@@ -45,11 +45,6 @@ export default function LandingPage() {
               </Link>
             </div>
           )}
-          <span className="text-xs text-slate-500">
-            Demo accounts available on sign-in: <code className="text-slate-400">alice</code>,{' '}
-            <code className="text-slate-400">brian</code>,{' '}
-            <code className="text-slate-400">carla</code>
-          </span>
         </div>
       </section>
 
@@ -233,10 +228,7 @@ export default function LandingPage() {
                         <div key={row.label} className="flex items-center gap-2 text-xs">
                           <span className="w-16 text-slate-400 text-[11px]">{row.label}</span>
                           <div className="flex-1 h-2 rounded-xs bg-[#090E1A] border border-[#1E2B48] overflow-hidden">
-                            <div
-                              style={{ width: row.pct }}
-                              className="h-full bg-[#F85C70]"
-                            />
+                            <div style={{ width: row.pct }} className="h-full bg-[#F85C70]" />
                           </div>
                         </div>
                       ))}
@@ -314,7 +306,6 @@ export default function LandingPage() {
           ================================================================= */}
           {previewTab === 'merchant' && (
             <div className="p-6 space-y-6">
-              {/* 4 KPI Strip */}
               <div className="grid grid-cols-4 gap-4">
                 <div className="panel-inset p-4 space-y-1">
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
@@ -363,7 +354,6 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              {/* Charts Row */}
               <div className="grid grid-cols-12 gap-5">
                 <div className="col-span-6 space-y-5">
                   <div className="panel-inset p-5 space-y-3">
@@ -594,7 +584,7 @@ export default function LandingPage() {
       </section>
 
       {/* =====================================================================
-          STRUCTURED ROLE SPECIFICATION MATRIX (Clean 3-Column Table Grid)
+          STRUCTURED ROLE SPECIFICATION MATRIX
       ===================================================================== */}
       <section className="space-y-4">
         <div className="flex items-baseline justify-between">
@@ -605,7 +595,6 @@ export default function LandingPage() {
         </div>
 
         <div className="panel grid grid-cols-3 divide-x divide-[#1E2B48]">
-          {/* Column 1: Cardholders */}
           <div className="p-6 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-mono uppercase tracking-wider text-[#7E8EF7]">
@@ -634,7 +623,6 @@ export default function LandingPage() {
             </ul>
           </div>
 
-          {/* Column 2: Merchants */}
           <div className="p-6 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-mono uppercase tracking-wider text-[#F85C70]">
@@ -663,7 +651,6 @@ export default function LandingPage() {
             </ul>
           </div>
 
-          {/* Column 3: Partners */}
           <div className="p-6 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-mono uppercase tracking-wider text-emerald-400">

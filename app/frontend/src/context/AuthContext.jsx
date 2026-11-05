@@ -1,12 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   loginUser,
   registerUser,
   fetchUserById,
-  pingBackend,
-  getSelectedEnvKey,
-  setSelectedEnvKey,
+  getApiEnvKey,
+  setApiEnvKey as persistApiEnvKey,
+  getApiBaseUrl,
   API_ENVIRONMENTS,
+  pingBackend,
 } from '../services/api';
 
 const AuthContext = createContext(null);
@@ -24,39 +25,37 @@ export function AuthProvider({ children }) {
       return null;
     }
   });
-  const [apiEnvKey, setApiEnvKeyState] = useState(getSelectedEnvKey);
+  const [apiEnvKey, setApiEnvState] = useState(() => getApiEnvKey());
   const [backendStatus, setBackendStatus] = useState({
-    state: 'checking', // 'checking' | 'online' | 'offline'
+    online: null,
     latencyMs: null,
     message: null,
+    checkedAt: null,
   });
-  const [lastAuthResponse, setLastAuthResponse] = useState(null);
 
-  const checkBackendHealth = useCallback(async () => {
-    setBackendStatus((prev) => ({ ...prev, state: 'checking' }));
+  const checkHealth = async () => {
     try {
       const res = await pingBackend();
       setBackendStatus({
-        state: 'online',
+        online: true,
         latencyMs: res.durationMs,
-        message: res.data?.message || 'OK',
+        message: res.data?.message || 'pong',
+        checkedAt: new Date().toLocaleTimeString(),
       });
-      return true;
     } catch (err) {
       setBackendStatus({
-        state: 'offline',
-        latencyMs: null,
+        online: false,
+        latencyMs: err.durationMs || null,
         message: err.message || 'Unreachable',
+        checkedAt: new Date().toLocaleTimeString(),
       });
-      return false;
     }
-  }, []);
+  };
 
   useEffect(() => {
-    checkBackendHealth();
-  }, [apiEnvKey, checkBackendHealth]);
+    checkHealth();
+  }, [apiEnvKey]);
 
-  // Verify stored session against GET /api/users/:userId when token exists
   useEffect(() => {
     let active = true;
     async function verifySession() {
@@ -82,11 +81,6 @@ export function AuthProvider({ children }) {
     };
   }, [token, user?._id, apiEnvKey]);
 
-  const changeApiEnv = (newKey) => {
-    setSelectedEnvKey(newKey);
-    setApiEnvKeyState(newKey);
-  };
-
   const login = async ({ username, password }) => {
     const res = await loginUser({ username, password });
     const { token: jwtToken, user: loggedInUser } = res.data;
@@ -94,32 +88,11 @@ export function AuthProvider({ children }) {
     localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(loggedInUser));
     setToken(jwtToken);
     setUser(loggedInUser);
-    setLastAuthResponse({
-      endpoint: 'POST /api/users/login',
-      status: res.status,
-      durationMs: res.durationMs,
-      url: res.url,
-      payload: res.data,
-      timestamp: new Date().toLocaleTimeString(),
-    });
     return res;
   };
 
   const register = async ({ firstName, lastName, username, password, email }) => {
     const res = await registerUser({ firstName, lastName, username, password, email });
-    const { token: jwtToken, user: createdUser } = res.data;
-    localStorage.setItem(STORAGE_TOKEN_KEY, jwtToken);
-    localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(createdUser));
-    setToken(jwtToken);
-    setUser(createdUser);
-    setLastAuthResponse({
-      endpoint: 'POST /api/users/create',
-      status: res.status,
-      durationMs: res.durationMs,
-      url: res.url,
-      payload: res.data,
-      timestamp: new Date().toLocaleTimeString(),
-    });
     return res;
   };
 
@@ -128,7 +101,11 @@ export function AuthProvider({ children }) {
     localStorage.removeItem(STORAGE_USER_KEY);
     setToken(null);
     setUser(null);
-    setLastAuthResponse(null);
+  };
+
+  const changeApiEnv = (nextKey) => {
+    persistApiEnvKey(nextKey);
+    setApiEnvState(nextKey);
   };
 
   return (
@@ -141,11 +118,11 @@ export function AuthProvider({ children }) {
         register,
         logout,
         apiEnvKey,
-        apiEnv: API_ENVIRONMENTS[apiEnvKey],
         changeApiEnv,
+        apiBaseUrl: getApiBaseUrl(),
+        apiEnvironments: API_ENVIRONMENTS,
         backendStatus,
-        checkBackendHealth,
-        lastAuthResponse,
+        checkHealth,
       }}
     >
       {children}
@@ -160,4 +137,3 @@ export function useAuth() {
   }
   return ctx;
 }
-

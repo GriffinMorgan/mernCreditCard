@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import LoginErrorPage from './pages/LoginErrorPage';
 import DashboardPage from './pages/DashboardPage';
 import SpendSignalLogo from './components/SpendSignalLogo';
 
@@ -18,6 +19,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/login-error" element={<LoginErrorPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

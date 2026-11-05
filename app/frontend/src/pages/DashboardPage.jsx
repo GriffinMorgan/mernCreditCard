@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Navigate } from 'react-router-dom';
 import SpendSignalLogo from '../components/SpendSignalLogo';
 import { useAuth } from '../context/AuthContext';
@@ -89,6 +89,11 @@ export default function DashboardPage() {
   const [cardError, setCardError] = useState(null);
   const [creatingCard, setCreatingCard] = useState(false);
 
+  // Interactive table search & sorting state (for rubric requirement)
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortField, setSortField] = useState('cardName'); // 'cardName' | 'network' | 'currentBalance' | 'creditLimit' | 'apr'
+  const [sortDir, setSortDir] = useState('asc'); // 'asc' | 'desc'
+
   const [selectedEndpoint, setSelectedEndpoint] = useState('/best-card');
   const [sandboxRunning, setSandboxRunning] = useState(false);
   const [whiteLabelColorOn, setWhiteLabelColorOn] = useState(true);
@@ -98,7 +103,7 @@ export default function DashboardPage() {
     if (!isAuthenticated) return;
     setLoadingCards(true);
     try {
-      const res = await fetchUserCards({ page: 1, limit: 10 });
+      const res = await fetchUserCards({ page: 1, limit: 25 });
       setCards(res.data?.data || []);
     } catch {
       setCards([]);
@@ -110,6 +115,48 @@ export default function DashboardPage() {
   useEffect(() => {
     loadUserCards();
   }, [isAuthenticated, apiEnvKey]);
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const filteredAndSortedCards = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const filtered = q
+      ? cards.filter(
+          (c) =>
+            String(c.cardName || '')
+              .toLowerCase()
+              .includes(q) ||
+            String(c.network || '')
+              .toLowerCase()
+              .includes(q) ||
+            String(c.last4 || '').includes(q)
+        )
+      : [...cards];
+
+    filtered.sort((a, b) => {
+      let valA = a[sortField];
+      let valB = b[sortField];
+      if (['currentBalance', 'creditLimit', 'apr'].includes(sortField)) {
+        valA = Number(valA || 0);
+        valB = Number(valB || 0);
+      } else {
+        valA = String(valA || '').toLowerCase();
+        valB = String(valB || '').toLowerCase();
+      }
+      if (valA < valB) return sortDir === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [cards, searchQuery, sortField, sortDir]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -149,6 +196,11 @@ export default function DashboardPage() {
 
   const totalBalance = cards.reduce((sum, c) => sum + Number(c.currentBalance || 0), 0);
   const totalLimit = cards.reduce((sum, c) => sum + Number(c.creditLimit || 0), 0);
+
+  const renderSortIndicator = (field) => {
+    if (sortField !== field) return <span className="text-slate-600 ml-1">↕</span>;
+    return <span className="text-[#7E8EF7] ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>;
+  };
 
   return (
     <div className="max-w-[1400px] mx-auto px-8 py-8 space-y-6">
@@ -242,16 +294,24 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Connected Cards Table + Add Card */}
+          {/* Connected Cards Table + Search Filter + Interactive Column Sorting */}
           <div className="panel overflow-hidden">
-            <div className="px-6 py-4 bg-[#0D1426] border-b border-[#1E2B48] flex items-center justify-between">
+            <div className="px-6 py-4 bg-[#0D1426] border-b border-[#1E2B48] flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-sm font-bold text-white">Connected Credit Cards</h2>
                 <p className="text-xs text-slate-400">
-                  Synced with MongoDB <code>cards</code> collection (<code>GET /api/cards</code>)
+                  Click any column header to sort, filter by keyword, or click a row to inspect{' '}
+                  <code>GET /api/cards/:cardId</code>
                 </p>
               </div>
               <div className="flex items-center gap-2.5">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Filter cards (name, network, last 4)..."
+                  className="field-input py-1.5 text-xs w-64"
+                />
                 <button
                   type="button"
                   onClick={loadUserCards}
@@ -360,21 +420,46 @@ export default function DashboardPage() {
               </form>
             )}
 
-            {cards.length > 0 ? (
+            {filteredAndSortedCards.length > 0 ? (
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-[#1E2B48] text-slate-400 bg-[#0B1120]/60">
-                    <th className="py-3 px-6 font-medium">Card Name</th>
-                    <th className="py-3 px-4 font-medium">Network &amp; Number</th>
+                  <tr className="border-b border-[#1E2B48] text-slate-400 bg-[#0B1120]/60 select-none">
+                    <th
+                      onClick={() => handleSort('cardName')}
+                      className="py-3 px-6 font-medium cursor-pointer hover:text-white"
+                    >
+                      Card Name {renderSortIndicator('cardName')}
+                    </th>
+                    <th
+                      onClick={() => handleSort('network')}
+                      className="py-3 px-4 font-medium cursor-pointer hover:text-white"
+                    >
+                      Network &amp; Number {renderSortIndicator('network')}
+                    </th>
                     <th className="py-3 px-4 font-medium">Status</th>
-                    <th className="py-3 px-4 font-medium text-right">Current Balance</th>
-                    <th className="py-3 px-4 font-medium text-right">Credit Limit</th>
+                    <th
+                      onClick={() => handleSort('currentBalance')}
+                      className="py-3 px-4 font-medium text-right cursor-pointer hover:text-white"
+                    >
+                      Current Balance {renderSortIndicator('currentBalance')}
+                    </th>
+                    <th
+                      onClick={() => handleSort('creditLimit')}
+                      className="py-3 px-4 font-medium text-right cursor-pointer hover:text-white"
+                    >
+                      Credit Limit {renderSortIndicator('creditLimit')}
+                    </th>
                     <th className="py-3 px-4 font-medium text-right">Available</th>
-                    <th className="py-3 px-6 font-medium text-right">APR / Exp</th>
+                    <th
+                      onClick={() => handleSort('apr')}
+                      className="py-3 px-6 font-medium text-right cursor-pointer hover:text-white"
+                    >
+                      APR / Exp {renderSortIndicator('apr')}
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#1A2540]">
-                  {cards.map((card) => (
+                  {filteredAndSortedCards.map((card) => (
                     <tr
                       key={card._id}
                       onClick={() => handleInspectSingleCard(card._id)}
@@ -396,13 +481,19 @@ export default function DashboardPage() {
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-right font-mono font-semibold text-white tabular-nums">
-                        ${Number(card.currentBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        $
+                        {Number(card.currentBalance).toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                        })}
                       </td>
                       <td className="py-3.5 px-4 text-right font-mono text-slate-300 tabular-nums">
                         ${Number(card.creditLimit).toLocaleString()}
                       </td>
                       <td className="py-3.5 px-4 text-right font-mono text-emerald-400 tabular-nums">
-                        ${Number(card.availableCredit ?? card.creditLimit - card.currentBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        $
+                        {Number(
+                          card.availableCredit ?? card.creditLimit - card.currentBalance
+                        ).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                       <td className="py-3.5 px-6 text-right font-mono text-slate-400 tabular-nums">
                         {card.apr}% · {card.expirationDate}
@@ -413,7 +504,9 @@ export default function DashboardPage() {
               </table>
             ) : (
               <div className="p-8 text-center text-xs text-slate-400">
-                No credit cards found for @{user.username}. Click &quot;+ Add Card&quot; to add one.
+                {searchQuery
+                  ? `No cards matching "${searchQuery}".`
+                  : `No credit cards found for @${user.username}. Click "+ Add Card" to add one.`}
               </div>
             )}
 

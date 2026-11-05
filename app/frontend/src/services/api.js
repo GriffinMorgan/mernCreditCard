@@ -1,41 +1,48 @@
-// API Environment configuration matching mernCreditCard/app/mernEndpoints/environments/
-// Uses the exact Express routes defined in mernCreditCard/app/routes/ (index.js, users.js, cards.js)
+// Environment URLs taken directly from mernCreditCard/app/mernEndpoints/environments/
 export const API_ENVIRONMENTS = {
   local: {
-    id: 'local',
+    key: 'local',
     label: 'Local Express API',
-    baseUrl: import.meta.env.VITE_API_URL || 'http://localhost:5000',
-    description: 'Local Node/Express server on port 5000 (mernCreditCard/app/server.js)',
+    baseUrl: 'http://localhost:5000',
   },
   production: {
-    id: 'production',
-    label: 'Production Droplet',
+    key: 'production',
+    label: 'Production (mern.teedlej.com)',
     baseUrl: 'https://mern.teedlej.com',
-    description: 'DigitalOcean droplet behind Nginx (mern.teedlej.com)',
   },
 };
 
 const STORAGE_ENV_KEY = 'spendsignal_api_env';
 const STORAGE_TOKEN_KEY = 'spendsignal_token';
 
-export function getSelectedEnvKey() {
+export function getApiEnvKey() {
   const saved = localStorage.getItem(STORAGE_ENV_KEY);
-  return saved && API_ENVIRONMENTS[saved] ? saved : 'local';
+  if (saved && API_ENVIRONMENTS[saved]) {
+    return saved;
+  }
+  return 'local';
 }
 
-export function setSelectedEnvKey(envKey) {
+export function setApiEnvKey(envKey) {
   if (API_ENVIRONMENTS[envKey]) {
     localStorage.setItem(STORAGE_ENV_KEY, envKey);
   }
 }
 
-export function getBaseUrl() {
-  const key = getSelectedEnvKey();
-  return API_ENVIRONMENTS[key].baseUrl.replace(/\/+$/, '');
+export function getApiBaseUrl() {
+  const envOverride = import.meta.env.VITE_API_URL;
+  const saved = localStorage.getItem(STORAGE_ENV_KEY);
+  if (saved && API_ENVIRONMENTS[saved]) {
+    return API_ENVIRONMENTS[saved].baseUrl;
+  }
+  if (envOverride) {
+    return envOverride.replace(/\/+$/, '');
+  }
+  return API_ENVIRONMENTS.local.baseUrl;
 }
 
 async function request(path, options = {}) {
-  const baseUrl = getBaseUrl();
+  const baseUrl = getApiBaseUrl();
   const url = `${baseUrl}${path}`;
   const token = localStorage.getItem(STORAGE_TOKEN_KEY);
 
@@ -130,4 +137,3 @@ export async function createUserCard(cardPayload) {
     body: JSON.stringify(cardPayload),
   });
 }
-
