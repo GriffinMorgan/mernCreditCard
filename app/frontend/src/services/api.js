@@ -1,18 +1,18 @@
 // Environment URLs taken directly from mernCreditCard/app/mernEndpoints/environments/
 export const API_ENVIRONMENTS = {
-  local: {
-    key: 'local',
-    label: 'Local Express API',
-    baseUrl: 'http://localhost:5000',
-  },
   production: {
     key: 'production',
     label: 'Production (mern.teedlej.com)',
     baseUrl: 'https://mern.teedlej.com',
   },
+  local: {
+    key: 'local',
+    label: 'Local Express API',
+    baseUrl: 'http://localhost:5000',
+  },
 };
 
-const STORAGE_ENV_KEY = 'spendsignal_api_env';
+const STORAGE_ENV_KEY = 'spendsignal_api_env_v2';
 const STORAGE_TOKEN_KEY = 'spendsignal_token';
 
 export function getApiEnvKey() {
@@ -20,7 +20,7 @@ export function getApiEnvKey() {
   if (saved && API_ENVIRONMENTS[saved]) {
     return saved;
   }
-  return 'local';
+  return 'production';
 }
 
 export function setApiEnvKey(envKey) {
@@ -30,15 +30,15 @@ export function setApiEnvKey(envKey) {
 }
 
 export function getApiBaseUrl() {
-  const envOverride = import.meta.env.VITE_API_URL;
   const saved = localStorage.getItem(STORAGE_ENV_KEY);
   if (saved && API_ENVIRONMENTS[saved]) {
     return API_ENVIRONMENTS[saved].baseUrl;
   }
+  const envOverride = import.meta.env.VITE_API_URL;
   if (envOverride) {
     return envOverride.replace(/\/+$/, '');
   }
-  return API_ENVIRONMENTS.local.baseUrl;
+  return API_ENVIRONMENTS.production.baseUrl;
 }
 
 async function request(path, options = {}) {
