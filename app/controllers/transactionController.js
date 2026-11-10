@@ -8,32 +8,40 @@ exports.createTrans = async (req, res, next) => {
   try {
     const { merchant, category, amount, cardId } = req.body || {};
 
-    // 1. Find the card AND populate its linked CardProduct details
+    // 1. Basic validation
+    if (!merchant || !category || amount == null || !cardId) {
+      return res.status(400).json({ error: 'Missing required fields: merchant, category, amount, and cardId are required.' });
+    }
+
+    // 2. Format Category (Capitalize first letter to match DB Enum: "Groceries", "Gas", "Dining", etc.)
+    const formattedCategory = category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
+
+    // 3. Find card & populate product
     const card = await Card.findOne({ _id: cardId, userId: req.userId }).populate('cardProduct');
-    
     if (!card) {
       return res.status(404).json({ error: 'Card not found or access denied' });
     }
 
-    // 2. Use the CardProduct model's built-in rateFor helper
-    // (If populated, card.cardProduct.rateFor(category) checks categoryRates, then falls back to baseRate)
-    const rewardRate = card.cardProduct ? card.cardProduct.rateFor(category) : 0;
+    // 4. Determine reward rate (using formatted category)
+    const rewardRate = card.cardProduct ? card.cardProduct.rateFor(formattedCategory) : 0;
+    const numAmount = Number(amount);
 
-    // 3. Create transaction
+    // 5. Create transaction matching MongoDB $jsonSchema requirements
     const trans = await Transaction.create({
-      cardId: cardId,
-      userId: req.userId,
-      merchant: merchant,
-      category: category,
-      amount: amount,
+      cardId: new mongoose.Types.ObjectId(cardId),
+      userId: new mongoose.Types.ObjectId(req.userId),
+      merchant: merchant.trim(),
+      category: formattedCategory,
+      amount: numAmount,
+      transactionDate: new Date(), // Required by MongoDB schema
       status: "pending",
       rewardRate: rewardRate,
-      rewardsEarned: amount * rewardRate,
+      rewardsEarned: Math.round(numAmount * rewardRate * 100) / 100,
     });
 
     res
       .status(201)
-      .location(`/api/transactions/${trans.id}`)
+      .location(`/api/transactions/${trans._id}`)
       .json(trans);
   } catch (err) {
     next(err);
