@@ -1,36 +1,55 @@
 const Card = require('../models/Card');
-// POST
-// /api/cards/createCard
+const mongoose = require('mongoose');
+const { isValidExpirationFormat, isExpired } = require('../config/utils');
+const CardProduct = require('../models/CardProduct');
+
+
+// Generated using Gemini
+// POST /api/cards
 exports.createCard = async (req, res, next) => {
-    try{
-        const { cardName = '', network, last4, creditLimit, currentBalance = 0, apr, expirationDate, status} = req.body || {};
+  try {
+    const { cardName = '', cardProduct, last4, creditLimit, currentBalance = 0, apr, expirationDate } = req.body || {};
 
-        // Frontend needs to have these fields + apr:
-        if (!cardName || !network || !last4 || creditLimit == null || apr == null || !expirationDate){
-            return res.status(400).json({error: 'cardName, network, last4, creditLimit, apr and expirationDate are required'}); 
-        }      
-        if (await Card.exists({ userId : req.userId, network: String(network), last4: String(last4)})){
-            return res.status(409).json({ error: 'This card already exists' });
-        }
-
-        const card = await Card.create({
-            userId:         req.userId,
-            cardName:       String(cardName),
-            network:        String(network),
-            last4:          String(last4),
-            creditLimit:    String(creditLimit),
-            currentBalance: String(currentBalance),
-            apr:            String(apr),
-            expirationDate: String(expirationDate)
-        });
-
-        res
-            .status(201)
-            .location(`/api/users/${card.id}`)
-            .json(card);
-    } catch(err){
-        next(err);
+    if (!cardName || !cardProduct || !last4 || creditLimit == null || apr == null || !expirationDate) {
+      return res.status(400).json({ error: 'cardName, cardProduct, last4, creditLimit, apr and expirationDate are required' });
     }
+
+    if (!isValidExpirationFormat(expirationDate)) {
+      return res.status(400).json({ error: 'Expiration date must be in MM/YYYY format' });
+    }
+
+    const product = await CardProduct.findById(cardProduct);
+    if (!product) {
+      return res.status(404).json({ error: 'Card product not found' });
+    }
+
+    if (await Card.exists({ userId: req.userId, network: product.network, last4: String(last4) })) {
+      return res.status(409).json({ error: 'This card already exists for this network and last4 digits' });
+    }
+
+    // Pass ObjectIds and Numbers matching MongoDB schema requirements
+    const card = await Card.create({
+      userId: new mongoose.Types.ObjectId(req.userId),
+      cardName: String(cardName).trim(),
+      cardProductId: new mongoose.Types.ObjectId(product._id), // Matched to DB schema field name
+      network: product.network,
+      last4: String(last4),
+      creditLimit: Number(creditLimit),
+      currentBalance: Number(currentBalance),
+      apr: Number(apr),
+      expirationDate: String(expirationDate),
+      status: isExpired(expirationDate) ? "closed" : "active"
+    });
+
+    await card.populate('cardProductId');
+
+    res
+      .status(201)
+      .location(`/api/cards/${card._id}`)
+      .json(card);
+  } catch (err) {
+    next(err);
+  }
 };
 
 // GET
@@ -72,6 +91,7 @@ exports.getCards = async (req, res, next) => {
     }
 };
 
+// /api/cards/getCard
 exports.getCard = async (req, res, next) => {
   try {
     // Filtering by both _id and userId means another user's card
@@ -82,4 +102,20 @@ exports.getCard = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+};
+
+// DELETE
+// /api/cards/deleteCard
+
+exports.deleteCard = async (req, res, next) => {
+    try{
+        // Deletes card using the cardID input parameter we want to delete
+        const deletedCard = await Card.deleteOne({_id: req.params.cardId, userId: req.userId});
+        if (deletedCard.deletedCount === 0) {
+            return res.status(404).json({ error: "Cant delete, card does not exist." });
+        }
+        res.status(200).json(deletedCard);
+    } catch (err) {
+        next(err);
+    }
 };

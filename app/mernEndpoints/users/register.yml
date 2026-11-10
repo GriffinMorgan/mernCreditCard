@@ -12,9 +12,9 @@ http:
       {
         "firstName": "Test",
         "lastName": "User",
-        "username": "{{regUsername}}",
-        "password": "{{regPassword}}",
-        "email": "{{regUsername}}@example.com"
+        "username": "alice",
+        "password": "AliceDemo#2026",
+        "email": "@example.com"
       }
 
 runtime:

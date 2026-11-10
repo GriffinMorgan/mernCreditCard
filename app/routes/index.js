@@ -11,4 +11,8 @@ router.get('/ping', (req, res) => {
 router.use('/users', require('./users'));
 
 router.use('/cards', require('./cards'));
+
+router.use('/transactions', require('./transactions'));
+
+router.use('/admin', require('./admin'));
 module.exports = router;

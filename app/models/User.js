@@ -45,6 +45,12 @@ const userSchema = new mongoose.Schema(
         default: Date.now,
         trim: true
     },
+    role: {
+      type: String,
+      enum: ['user', 'admin', 'company'],
+      default: 'user',
+      trim: true
+    },
     email: {
       type: String,
       default: '',

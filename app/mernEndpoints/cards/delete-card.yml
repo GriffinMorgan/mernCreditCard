@@ -1,0 +1,25 @@
+info:
+  name: Delete Card
+  type: http
+  seq: 5
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/api/cards/{{cardId}}"
+  auth:
+    type: bearer
+    token: "{{token}}"
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("returns 200", function() {
+          expect(res.status).to.equal(200);
+        });
+        test("deletes exactly one card", function() {
+          expect(res.body.deletedCount).to.equal(1);
+        });
+
+settings:
+  encodeUrl: true
