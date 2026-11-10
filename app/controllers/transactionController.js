@@ -2,36 +2,42 @@ const Transaction = require('../models/Transaction');
 const Card = require('../models/Card');
 const mongoose = require('mongoose');
 
-// POST
-// /api/transactions/create
+// This function was generated with Gemini to bugfix a population bug... it was incomprehensible
+// POST /api/transactions/create
 exports.createTrans = async (req, res, next) => {
-    try{
-        const {merchant, category, amount, cardId,} = req.body || {};
-        //const card = await Card.findOne({ _id: req.params.cardId, userId: req.userId });
-        const card = await Card.findOne({ _id: cardId, userId: req.userId });
+  try {
+    const { merchant, category, amount, cardId } = req.body || {};
 
-        // ADD check on merchant
-
-        const rewardRate = card.cardProduct.get(category);
-
-        const trans = await Transaction.create({
-            cardId:     cardId,
-            userId:     req.userId,
-            merchant:   merchant,
-            category:   category,
-            amount:     amount,
-            status:     "pending",
-            rewardRate: rewardRate,
-            rewardsEarned: amount * rewardRate,
-        });
-
-        res
-            .status(201)
-            .location(`/api/transactions/${trans.id}`)
-            .json(trans);
-    } catch (err){
-        next(err);
+    // 1. Find the card AND populate its linked CardProduct details
+    const card = await Card.findOne({ _id: cardId, userId: req.userId }).populate('cardProduct');
+    
+    if (!card) {
+      return res.status(404).json({ error: 'Card not found or access denied' });
     }
+
+    // 2. Use the CardProduct model's built-in rateFor helper
+    // (If populated, card.cardProduct.rateFor(category) checks categoryRates, then falls back to baseRate)
+    const rewardRate = card.cardProduct ? card.cardProduct.rateFor(category) : 0;
+
+    // 3. Create transaction
+    const trans = await Transaction.create({
+      cardId: cardId,
+      userId: req.userId,
+      merchant: merchant,
+      category: category,
+      amount: amount,
+      status: "pending",
+      rewardRate: rewardRate,
+      rewardsEarned: amount * rewardRate,
+    });
+
+    res
+      .status(201)
+      .location(`/api/transactions/${trans.id}`)
+      .json(trans);
+  } catch (err) {
+    next(err);
+  }
 };
 
 // GET

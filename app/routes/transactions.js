@@ -21,6 +21,6 @@ router.get('/', transactions.getTrans);
 // GET  /api/cards/:transId - one card, only if it belongs to the user
 router.get('/:transId', transactions.getTransById);
 
-// DELETE /api/cards/delete
-router.delete('/', transactions.deleteTrans);
+// DELETE /api/cards/delete:transId
+router.delete('/:transId', transactions.deleteTrans);
 module.exports = router;
