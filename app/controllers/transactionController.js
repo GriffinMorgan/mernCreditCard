@@ -3,40 +3,43 @@ const Card = require('../models/Card');
 const mongoose = require('mongoose');
 
 // This function was generated with Gemini to bugfix a population bug... it was incomprehensible
-// POST /api/transactions/create
+const CATEGORIES = ["Groceries", "Gas", "Dining", "Travel", "Shopping", "Entertainment", "Utilities", "Other"];
+
 exports.createTrans = async (req, res, next) => {
   try {
     const { merchant, category, amount, cardId } = req.body || {};
 
-    // 1. Basic validation
     if (!merchant || !category || amount == null || !cardId) {
       return res.status(400).json({ error: 'Missing required fields: merchant, category, amount, and cardId are required.' });
     }
 
-    // 2. Format Category (Capitalize first letter to match DB Enum: "Groceries", "Gas", "Dining", etc.)
-    const formattedCategory = category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
+    // Match exact category casing from CATEGORIES array ("groceries" -> "Groceries")
+    const matchedCategory = CATEGORIES.find(
+      c => c.toLowerCase() === category.toString().trim().toLowerCase()
+    );
 
-    // 3. Find card & populate product
+    if (!matchedCategory) {
+      return res.status(400).json({ error: `Invalid category. Allowed: ${CATEGORIES.join(', ')}` });
+    }
+
     const card = await Card.findOne({ _id: cardId, userId: req.userId }).populate('cardProduct');
     if (!card) {
       return res.status(404).json({ error: 'Card not found or access denied' });
     }
 
-    // 4. Determine reward rate (using formatted category)
-    const rewardRate = card.cardProduct ? card.cardProduct.rateFor(formattedCategory) : 0;
+    // Get reward rate using matched capitalized category
+    const rewardRate = card.cardProduct ? card.cardProduct.rateFor(matchedCategory) : 0;
     const numAmount = Number(amount);
 
-    // 5. Create transaction matching MongoDB $jsonSchema requirements
     const trans = await Transaction.create({
       cardId: new mongoose.Types.ObjectId(cardId),
       userId: new mongoose.Types.ObjectId(req.userId),
       merchant: merchant.trim(),
-      category: formattedCategory,
+      category: matchedCategory,
       amount: numAmount,
-      transactionDate: new Date(), // Required by MongoDB schema
+      transactionDate: new Date(),
       status: "pending",
-      rewardRate: rewardRate,
-      rewardsEarned: Math.round(numAmount * rewardRate * 100) / 100,
+      rewardRate: rewardRate
     });
 
     res
