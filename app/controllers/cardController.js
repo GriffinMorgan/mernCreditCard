@@ -42,12 +42,42 @@ exports.createCard = async (req, res, next) => {
             status:         isExpired(expirationDate) ? "closed" : "active"
         });
         
-        await card.populate('cardProduct');
+        await card.populate('cards');
         res
             .status(201)
             .location(`/api/users/${card.id}`)
             .json(card);
     } catch(err){
+        next(err);
+    }
+};
+
+// /api/cards/createCardProduct
+exports.createCardProduct = async (req, res, next) => {
+    try{
+        const {name, network, annualFee, baseRate, categoryRates} = req.body || {};
+
+        if(!name || !network || !annualFee || baseRate || categoryRates){
+            return res.status(400).json({error: 'name, network, fee, base rate, and category rates are required'});
+        }
+        if(await cardProduct.exists({userId : req.userId, name : name})){
+            return res.status(409).json({error : "this card product already exists"});
+        }
+
+        const cardProduct = await cardProduct.create({
+            userId : req.userId,
+            network : network,
+            annualFee : annualFee,
+            baseRate : baseRate,
+            categoryRates : categoryRates
+        });
+
+        await cardProduct.populate('cardProducts');
+        res
+            .status(201)
+            .location(`/api/users/${cardProduct.id}`)
+            .json(cardProduct);
+    } catch (err){
         next(err);
     }
 };

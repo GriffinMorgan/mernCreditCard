@@ -14,6 +14,8 @@ router.param('userId', validateObjectId);
 // POST /api/cards       - add a card to the logged-in user's account
 router.post('/', cards.createCard);
 
+router.post('/', cards.createCardProduct);
+
 // GET  /api/cards       - list the logged-in user's cards
 router.get('/', cards.getCards);
 

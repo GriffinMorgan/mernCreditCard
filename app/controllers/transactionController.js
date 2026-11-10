@@ -1,4 +1,4 @@
-const transaction = require('..models/Transaction');
+const transaction = require('../models/Transaction');
 const mongoose = require('mongoose');
 
 // POST
@@ -33,6 +33,7 @@ exports.createTrans = async (req, res, next) => {
 };
 
 // GET
+// Get all transactions for the user
 // /api/transactions/getTrans
 exports.getTrans = async (req,res, next) => {
     try{
@@ -67,6 +68,7 @@ exports.getTrans = async (req,res, next) => {
     }
 };
 
+// Get single transactions
 // /api/transactions/getTrans
 exports.getTrans = async (req, res, next) => {
   try {

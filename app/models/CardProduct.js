@@ -7,6 +7,12 @@ const NETWORKS = ['Visa', 'Mastercard', 'Amex', 'Discover'];
 const cardProductSchema = new mongoose.Schema(
   {
     // Product name, e.g. "Sapphire Preferred". Unique so two products can't share a name.
+    userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: [true, 'userId is required'],
+          index: true
+    },
     name: {
       type: String,
       required: [true, 'Product name is required'],
