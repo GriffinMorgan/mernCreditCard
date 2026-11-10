@@ -19,8 +19,8 @@ router.post('/', transactions.createTrans);
 router.get('/', transactions.getTrans);
 
 // GET  /api/cards/:transId - one card, only if it belongs to the user
-router.get('/:transId', transactions.getTrans);
+router.get('/:transId', transactions.getTransById);
 
 // DELETE /api/cards/delete
-router.get('/', transaction.deleteTrans);
+router.delete('/', transactions.deleteTrans);
 module.exports = router;

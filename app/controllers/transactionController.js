@@ -1,4 +1,5 @@
-const transaction = require('..models/Transaction');
+const transaction = require('../models/Transaction');
+const Card = require('../models/Card');
 const mongoose = require('mongoose');
 
 // POST
@@ -6,7 +7,8 @@ const mongoose = require('mongoose');
 exports.createTrans = async (req, res, next) => {
     try{
         const {merchant, category, amount, cardId,} = req.body || {};
-        const card = await Card.findOne({ _id: req.params.cardId, userId: req.userId });
+        //const card = await Card.findOne({ _id: req.params.cardId, userId: req.userId });
+        const card = await Card.findOne({ _id: cardId, userId: req.userId });
 
         // ADD check on merchant
 
@@ -67,10 +69,10 @@ exports.getTrans = async (req,res, next) => {
     }
 };
 
-// /api/transactions/getTrans
-exports.getTrans = async (req, res, next) => {
+// Generated with Gemini 11/10/2026 to fix duplicate getTrans function
+// GET /api/transactions/:transId
+exports.getTransById = async (req, res, next) => {
   try {
-    // returns 404, without revealing that it exists
     const trans = await Transaction.findOne({ _id: req.params.transId, userId: req.userId });
     if (!trans) return res.status(404).json({ error: 'Transaction not found' });
     res.status(200).json(trans);
@@ -85,7 +87,7 @@ exports.deleteTrans = async (req, res, next) => {
         // Deletes card using the cardID input parameter we want to delete
         const deletedTrans = await Transaction.deleteOne({_id: req.params.transId, userId: req.userId});
         if (deletedTrans.deletedCount === 0) {
-            return res.status(404).json({ error: "Cant delete, card does not exist." });
+            return res.status(404).json({ error: "Can't delete, transaction does not exist." });
         }
         res.status(200).json(deletedTrans);
     } catch (err) {
