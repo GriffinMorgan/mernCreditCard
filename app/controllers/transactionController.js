@@ -1,35 +1,54 @@
-const transaction = require('../models/Transaction');
+const Transaction = require('../models/Transaction');
+const Card = require('../models/Card');
 const mongoose = require('mongoose');
 
-// POST
-// /api/transactions/create
+// This function was generated with Gemini to bugfix a population bug... it was incomprehensible
+const CATEGORIES = ["Groceries", "Gas", "Dining", "Travel", "Shopping", "Entertainment", "Utilities", "Other"];
+
 exports.createTrans = async (req, res, next) => {
-    try{
-        const {merchant, category, amount, cardId,} = req.body || {};
-        const card = await Card.findOne({ _id: req.params.cardId, userId: req.userId });
+  try {
+    const { merchant, category, amount, cardId } = req.body || {};
 
-        // ADD check on merchant
-
-        const rewardRate = card.cardProduct.get(category);
-
-        const trans = await Transaction.create({
-            cardId:     cardId,
-            userId:     req.userId,
-            merchant:   merchant,
-            category:   category,
-            amount:     amount,
-            status:     "pending",
-            rewardRate: rewardRate,
-            rewardsEarned: amount * rewardRate,
-        });
-
-        res
-            .status(201)
-            .location(`/api/transactions/${trans.id}`)
-            .json(trans);
-    } catch (err){
-        next(err);
+    if (!merchant || !category || amount == null || !cardId) {
+      return res.status(400).json({ error: 'Missing required fields: merchant, category, amount, and cardId are required.' });
     }
+
+    // Match exact category casing from CATEGORIES array ("groceries" -> "Groceries")
+    const matchedCategory = CATEGORIES.find(
+      c => c.toLowerCase() === category.toString().trim().toLowerCase()
+    );
+
+    if (!matchedCategory) {
+      return res.status(400).json({ error: `Invalid category. Allowed: ${CATEGORIES.join(', ')}` });
+    }
+
+    const card = await Card.findOne({ _id: cardId, userId: req.userId }).populate('cardProduct');
+    if (!card) {
+      return res.status(404).json({ error: 'Card not found or access denied' });
+    }
+
+    // Get reward rate using matched capitalized category
+    const rewardRate = card.cardProduct ? card.cardProduct.rateFor(matchedCategory) : 0;
+    const numAmount = Number(amount);
+
+    const trans = await Transaction.create({
+      cardId: new mongoose.Types.ObjectId(cardId),
+      userId: new mongoose.Types.ObjectId(req.userId),
+      merchant: merchant.trim(),
+      category: matchedCategory,
+      amount: numAmount,
+      transactionDate: new Date(),
+      status: "pending",
+      rewardRate: rewardRate
+    });
+
+    res
+      .status(201)
+      .location(`/api/transactions/${trans._id}`)
+      .json(trans);
+  } catch (err) {
+    next(err);
+  }
 };
 
 // GET
@@ -68,11 +87,10 @@ exports.getTrans = async (req,res, next) => {
     }
 };
 
-// Get single transactions
-// /api/transactions/getTrans
-exports.getTrans = async (req, res, next) => {
+// Generated with Gemini 11/10/2026 to fix duplicate getTrans function
+// GET /api/transactions/:transId
+exports.getTransById = async (req, res, next) => {
   try {
-    // returns 404, without revealing that it exists
     const trans = await Transaction.findOne({ _id: req.params.transId, userId: req.userId });
     if (!trans) return res.status(404).json({ error: 'Transaction not found' });
     res.status(200).json(trans);
@@ -87,7 +105,7 @@ exports.deleteTrans = async (req, res, next) => {
         // Deletes card using the cardID input parameter we want to delete
         const deletedTrans = await Transaction.deleteOne({_id: req.params.transId, userId: req.userId});
         if (deletedTrans.deletedCount === 0) {
-            return res.status(404).json({ error: "Cant delete, card does not exist." });
+            return res.status(404).json({ error: "Can't delete, transaction does not exist." });
         }
         res.status(200).json(deletedTrans);
     } catch (err) {

@@ -22,6 +22,6 @@ router.get('/', cards.getCards);
 // GET  /api/cards/:cardId - one card, only if it belongs to the user
 router.get('/:cardId', cards.getCard);
 
-// DELETE /api/cards/delete
-router.get('/', cards.deleteCard);
+// DELETE /api/cards/:cardId - delete a specific card
+router.delete('/:cardId', cards.deleteCard);
 module.exports = router;

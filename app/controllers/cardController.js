@@ -2,54 +2,57 @@ const Card = require('../models/Card');
 const mongoose = require('mongoose');
 const { isValidExpirationFormat, isExpired } = require('../config/utils');
 const CardProduct = require('../models/CardProduct');
-// POST
-// /api/cards/createCard
+
+
+// Generated using Gemini
+// POST /api/cards
 exports.createCard = async (req, res, next) => {
-    try{
-        const { cardName = '', cardProduct, last4, creditLimit, currentBalance = 0, apr, expirationDate} = req.body || {};
-        
-        
-        // Frontend needs to have these fields + apr:
-        if (!cardName || !cardProduct || !last4 || creditLimit == null || apr == null || !expirationDate){
-            return res.status(400).json({error: 'cardName, network, last4, creditLimit, apr and expirationDate are required'}); 
-        }
-        if (!isValidExpirationFormat(expirationDate)){
-            return res.status(400).json({error: 'Expiration date must be in MMMM/YY format'});
-        }
-        if (await Card.exists({ userId : req.userId, last4: String(last4)})){
-            return res.status(409).json({ error: 'This card already exists' });
-        }
-        
-        const product = await CardProduct.findById(cardProduct);
-        if (!product) {
-            return res.status(404).json({ error: 'Card product not found' });
-        }
-
-        if (await Card.exists({ userId: req.userId, network: product.network, last4: String(last4) })) {
-            return res.status(409).json({ error: 'This card already exists' });
-        }
-
-        const card = await Card.create({
-            userId:         req.userId,
-            cardName:       String(cardName),
-            cardProduct:    product._id,
-            network:        product.network,
-            last4:          String(last4),
-            creditLimit:    String(creditLimit),
-            currentBalance: String(currentBalance),
-            apr:            String(apr),
-            expirationDate: String(expirationDate),
-            status:         isExpired(expirationDate) ? "closed" : "active"
-        });
-        
-        await card.populate('cards');
-        res
-            .status(201)
-            .location(`/api/users/${card.id}`)
-            .json(card);
-    } catch(err){
-        next(err);
+  try {
+    const { cardName = '', cardProduct, last4, creditLimit, currentBalance = 0, apr, expirationDate } = req.body || {};
+    
+    if (await Card.exists({ userId: req.userId, network: product.network, last4: String(last4) })) {
+        return res.status(409).json({ error: 'This card already exists' });
     }
+    if (!cardName || !cardProduct || !last4 || creditLimit == null || apr == null || !expirationDate) {
+      return res.status(400).json({ error: 'cardName, cardProduct, last4, creditLimit, apr and expirationDate are required' });
+    }
+
+    if (!isValidExpirationFormat(expirationDate)) {
+      return res.status(400).json({ error: 'Expiration date must be in MM/YYYY format' });
+    }
+
+    const product = await CardProduct.findById(cardProduct);
+    if (!product) {
+      return res.status(404).json({ error: 'Card product not found' });
+    }
+
+    if (await Card.exists({ userId: req.userId, network: product.network, last4: String(last4) })) {
+      return res.status(409).json({ error: 'This card already exists for this network and last4 digits' });
+    }
+
+    // Pass ObjectIds and Numbers matching MongoDB schema requirements
+    const card = await Card.create({
+      userId: new mongoose.Types.ObjectId(req.userId),
+      cardName: String(cardName).trim(),
+      cardProductId: new mongoose.Types.ObjectId(product._id), // Matched to DB schema field name
+      network: product.network,
+      last4: String(last4),
+      creditLimit: Number(creditLimit),
+      currentBalance: Number(currentBalance),
+      apr: Number(apr),
+      expirationDate: String(expirationDate),
+      status: isExpired(expirationDate) ? "closed" : "active"
+    });
+
+    await card.populate('cardProductId');
+
+    res
+      .status(201)
+      .location(`/api/cards/${card._id}`)
+      .json(card);
+  } catch (err) {
+    next(err);
+  }
 };
 
 // /api/cards/createCardProduct
