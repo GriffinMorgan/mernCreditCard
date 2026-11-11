@@ -52,6 +52,16 @@ exports.createCard = async (req, res, next) => {
   }
 };
 
+// GET /api/cards/products
+exports.getCardProducts = async (req, res, next) => {
+  try {
+    const products = await CardProduct.find({}).sort({ name: 1 });
+    res.status(200).json(products);
+  } catch (err) {
+    next(err);
+  }
+};
+
 // GET
 // /api/cards/getCards
 

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { validatePasswordRules } from '../services/api';
 
 export default function LoginPage() {
-  const { login, register, isAuthenticated, apiBaseUrl } = useAuth();
+  const { login, register, isAuthenticated } = useAuth();
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -28,10 +29,31 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, navigate]);
 
+  const passwordCheck = validatePasswordRules(password);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorBanner(null);
     setRegisteredSuccess(null);
+
+    if (mode === 'register') {
+      const cleanUsername = username.trim();
+      if (cleanUsername.length < 3 || cleanUsername.length > 30) {
+        setErrorBanner({
+          status: 400,
+          message: 'Username must be between 3 and 30 characters.',
+        });
+        return;
+      }
+      if (!passwordCheck.valid) {
+        setErrorBanner({
+          status: 400,
+          message: passwordCheck.error,
+        });
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -47,7 +69,6 @@ export default function LoginPage() {
           password,
           email: email.trim(),
         });
-        // Switch back to Sign In so the user can immediately sign in with their new credentials
         setMode('login');
         setUsername(cleanUsername);
         setPassword('');
@@ -68,7 +89,6 @@ export default function LoginPage() {
         setErrorBanner({
           status: err.status || 'Registration Error',
           message: err.message || 'Could not register account.',
-          url: err.url || `${apiBaseUrl}/api/users/create`,
         });
       }
     } finally {
@@ -77,18 +97,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="max-w-[1400px] mx-auto px-8 py-16 flex justify-center">
-      <div className="w-full max-w-md">
+    <div className="max-w-[1400px] mx-auto px-8 py-14 flex justify-center">
+      <div className="w-full max-w-md space-y-4">
         <div className="panel p-8 space-y-6">
           <div className="flex items-start justify-between border-b border-[#1E2B48] pb-5">
             <div>
               <h1 className="text-2xl font-bold text-white">
-                {mode === 'login' ? 'Sign in to SpendSignal' : 'Register for a new account'}
+                {mode === 'login' ? 'Sign in to SpendSignal' : 'Create a New Account'}
               </h1>
               <p className="text-xs text-slate-400 mt-1">
                 {mode === 'login'
-                  ? 'Enter your username and password to access your workspace.'
-                  : 'Submit your name, desired username, and password to create an account.'}
+                  ? 'Enter your credentials to access your assigned portal.'
+                  : 'Complete the fields below to register your account.'}
               </p>
             </div>
 
@@ -181,9 +201,11 @@ export default function LoginPage() {
               <input
                 type="text"
                 required
+                minLength={mode === 'register' ? 3 : undefined}
+                maxLength={mode === 'register' ? 30 : undefined}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter your username"
+                placeholder={mode === 'register' ? '3–30 characters' : 'Enter your username'}
                 className="field-input"
               />
             </div>
@@ -191,10 +213,11 @@ export default function LoginPage() {
             {mode === 'register' && (
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Email address (optional)
+                  Email address <span className="text-[#F85C70]">*</span>
                 </label>
                 <input
                   type="email"
+                  required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
@@ -221,9 +244,35 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder={
+                  mode === 'register'
+                    ? 'Min 8 chars + 1 special character (e.g. #!@)'
+                    : 'Enter your password'
+                }
                 className="field-input font-mono"
               />
+
+              {mode === 'register' && (
+                <div className="mt-2 p-2.5 rounded bg-[#0B1120] border border-[#1E2B48] space-y-1 text-[11px]">
+                  <div className="text-slate-400 font-medium">Password Requirements:</div>
+                  <div
+                    className={`flex items-center gap-1.5 ${
+                      passwordCheck.minLengthOk ? 'text-emerald-400' : 'text-slate-400'
+                    }`}
+                  >
+                    <span>{passwordCheck.minLengthOk ? '✓' : '○'}</span>
+                    <span>At least 8 characters long</span>
+                  </div>
+                  <div
+                    className={`flex items-center gap-1.5 ${
+                      passwordCheck.hasSpecialChar ? 'text-emerald-400' : 'text-slate-400'
+                    }`}
+                  >
+                    <span>{passwordCheck.hasSpecialChar ? '✓' : '○'}</span>
+                    <span>Contains at least one special character (e.g. ! @ # $ %)</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="pt-2">

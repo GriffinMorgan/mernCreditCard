@@ -22,13 +22,18 @@ exports.createTrans = async (req, res, next) => {
       return res.status(400).json({ error: `Invalid category. Allowed: ${CATEGORIES.join(', ')}` });
     }
 
-    const card = await Card.findOne({ _id: cardId, userId: req.userId }).populate('cardProduct');
+    const card = await Card.findOne({ _id: cardId, userId: req.userId }).populate('cardProductId');
     if (!card) {
       return res.status(404).json({ error: 'Card not found or access denied' });
     }
 
     // Get reward rate using matched capitalized category
-    const rewardRate = card.cardProduct ? card.cardProduct.rateFor(matchedCategory) : 0;
+    const productDoc = card.cardProductId && typeof card.cardProductId.rateFor === 'function'
+      ? card.cardProductId
+      : card.cardProduct && typeof card.cardProduct.rateFor === 'function'
+      ? card.cardProduct
+      : null;
+    const rewardRate = productDoc ? productDoc.rateFor(matchedCategory) : 0;
     const numAmount = Number(amount);
 
     const trans = await Transaction.create({

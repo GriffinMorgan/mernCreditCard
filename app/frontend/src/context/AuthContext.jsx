@@ -3,11 +3,7 @@ import {
   loginUser,
   registerUser,
   fetchUserById,
-  getApiEnvKey,
-  setApiEnvKey as persistApiEnvKey,
   getApiBaseUrl,
-  API_ENVIRONMENTS,
-  pingBackend,
 } from '../services/api';
 
 const AuthContext = createContext(null);
@@ -25,36 +21,6 @@ export function AuthProvider({ children }) {
       return null;
     }
   });
-  const [apiEnvKey, setApiEnvState] = useState(() => getApiEnvKey());
-  const [backendStatus, setBackendStatus] = useState({
-    online: null,
-    latencyMs: null,
-    message: null,
-    checkedAt: null,
-  });
-
-  const checkHealth = async () => {
-    try {
-      const res = await pingBackend();
-      setBackendStatus({
-        online: true,
-        latencyMs: res.durationMs,
-        message: res.data?.message || 'pong',
-        checkedAt: new Date().toLocaleTimeString(),
-      });
-    } catch (err) {
-      setBackendStatus({
-        online: false,
-        latencyMs: err.durationMs || null,
-        message: err.message || 'Unreachable',
-        checkedAt: new Date().toLocaleTimeString(),
-      });
-    }
-  };
-
-  useEffect(() => {
-    checkHealth();
-  }, [apiEnvKey]);
 
   useEffect(() => {
     let active = true;
@@ -79,7 +45,7 @@ export function AuthProvider({ children }) {
     return () => {
       active = false;
     };
-  }, [token, user?._id, apiEnvKey]);
+  }, [token, user?._id]);
 
   const login = async ({ username, password }) => {
     const res = await loginUser({ username, password });
@@ -103,11 +69,6 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
-  const changeApiEnv = (nextKey) => {
-    persistApiEnvKey(nextKey);
-    setApiEnvState(nextKey);
-  };
-
   return (
     <AuthContext.Provider
       value={{
@@ -117,12 +78,7 @@ export function AuthProvider({ children }) {
         login,
         register,
         logout,
-        apiEnvKey,
-        changeApiEnv,
         apiBaseUrl: getApiBaseUrl(),
-        apiEnvironments: API_ENVIRONMENTS,
-        backendStatus,
-        checkHealth,
       }}
     >
       {children}

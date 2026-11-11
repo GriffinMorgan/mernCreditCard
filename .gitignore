@@ -16,7 +16,6 @@ coverage/
 .parcel-cache
 .next
 .nuxt
-dist/
 .serverless/
 
 # Environment
@@ -74,7 +73,5 @@ cache/
 
 # Build Output
 build/
-dist/
 out/
-*.min.*
-*.map
+!app/frontend/dist/
