@@ -89,12 +89,4 @@ transactionSchema.virtual('formattedAmount').get(function () {
   return this.amount == null ? null : `$${this.amount.toFixed(2)}`;
 });
 
-cardProductSchema.methods.rateFor = function (category) {
-  const key = String(category).toLowerCase();
-  for (const [k, v] of this.categoryRates || []) {
-    if (k.toLowerCase() === key) return v;
-  }
-  return this.baseRate;
-};
-
 module.exports = mongoose.model('Transaction', transactionSchema);

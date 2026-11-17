@@ -16,5 +16,5 @@ router.use('/transactions', require('./transactions'));
 
 router.use('/admin', require('./admin'));
 
-router.use('/company', require('.company'));
+router.use('/company', require('./company'));
 module.exports = router;

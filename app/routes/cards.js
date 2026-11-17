@@ -18,7 +18,7 @@ router.post('/', cards.createCard);
 router.post('/products', cards.createCardProduct);
 
 // GET  /api/cards/products - list available card products
-router.get('/products', cards.getCardProducts);
+//router.get('/products', cards.getCardProducts);
 
 // GET  /api/cards       - list the logged-in user's cards
 router.get('/', cards.getCards);
