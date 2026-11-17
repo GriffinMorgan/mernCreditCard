@@ -14,12 +14,17 @@ router.param('userId', validateObjectId);
 // POST /api/cards       - add a card to the logged-in user's account
 router.post('/', cards.createCard);
 
+// POST /api/cards/products
+router.post('/products', cards.createCardProduct);
+
 // GET  /api/cards/products - list available card products
 router.get('/products', cards.getCardProducts);
 
 // GET  /api/cards       - list the logged-in user's cards
 router.get('/', cards.getCards);
 
+// GET /api/cards/products
+router.get('/products', requireAuth('company'), cards.getCardProducts);
 // GET  /api/cards/:cardId - one card, only if it belongs to the user
 router.get('/:cardId', cards.getCard);
 
