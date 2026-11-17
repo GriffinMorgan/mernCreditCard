@@ -3,8 +3,15 @@ const mongoose = require('mongoose');
 const { isValidExpirationFormat, isExpired } = require('../config/utils');
 const CardProduct = require('../models/CardProduct');
 
+// Moves the populated product's rates onto the card; cardProductId stays a plain ID.
+// Expects a lean card with cardProductId populated.
+const flattenCard = ({ cardProductId: product, ...card }) => ({
+    ...card,
+    cardProductId: product?._id ?? null,
+    baseRate: product?.baseRate ?? null,
+    categoryRates: product?.categoryRates ?? {}
+});
 
-// Generated using Gemini
 // POST /api/cards
 exports.createCard = async (req, res, next) => {
   try {
@@ -52,16 +59,6 @@ exports.createCard = async (req, res, next) => {
   }
 };
 
-// GET /api/cards/products
-exports.getCardProducts = async (req, res, next) => {
-  try {
-    const products = await CardProduct.find({}).sort({ name: 1 });
-    res.status(200).json(products);
-  } catch (err) {
-    next(err);
-  }
-};
-
 // GET
 // /api/cards/getCards
 
@@ -77,16 +74,18 @@ exports.getCards = async (req, res, next) => {
 
         const [cards, total] = await Promise.all([
             Card.find(filter)
-            .sort({createdAt: -1, _id: -1})
-            .skip(skip)
-            .limit(limit),
+                .sort({createdAt: -1, _id: -1})
+                .skip(skip)
+                .limit(limit)
+                .populate('cardProductId', 'baseRate categoryRates')
+                .lean(),
             Card.countDocuments(filter)
         ]);
 
         const totalPages = Math.ceil(total / limit);
 
         res.status(200).json({
-            data: cards,
+            data: cards.map(flattenCard),
             pagination: {
                 page,
                 limit,
@@ -101,14 +100,16 @@ exports.getCards = async (req, res, next) => {
     }
 };
 
-// /api/cards/getCard
+// GET /api/cards/:cardId
 exports.getCard = async (req, res, next) => {
   try {
     // Filtering by both _id and userId means another user's card
     // returns 404, without revealing that it exists
-    const card = await Card.findOne({ _id: req.params.cardId, userId: req.userId });
+    const card = await Card.findOne({ _id: req.params.cardId, userId: req.userId })
+      .populate('cardProductId', 'baseRate categoryRates')
+      .lean();
     if (!card) return res.status(404).json({ error: 'Card not found' });
-    res.status(200).json(card);
+    res.status(200).json(flattenCard(card));
   } catch (err) {
     next(err);
   }
@@ -128,4 +129,63 @@ exports.deleteCard = async (req, res, next) => {
     } catch (err) {
         next(err);
     }
+};
+
+// GET /api/cards/products
+// Access: any logged-in user
+// Returns every card product (_id, name, network, annualFee, baseRate, categoryRates)
+exports.getCardProducts = async (req, res, next) => {
+  try {
+    const products = await CardProduct.find({})
+      .select('name network annualFee baseRate categoryRates')
+      .sort({ name: 1 });
+
+    res.status(200).json(products);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/cards/products
+// Access: company role
+// Body: { name, network, annualFee?, baseRate, categoryRates? }
+exports.createCardProduct = async (req, res, next) => {
+  try {
+    // Assumes auth middleware sets req.userRole alongside req.userId
+    if (req.userRole !== 'company') {
+      return res.status(403).json({ error: 'Only company accounts can create card products' });
+    }
+
+    const { name, network, annualFee = 0, baseRate, categoryRates = {} } = req.body || {};
+
+    if (!name || !network || baseRate == null) {
+      return res.status(400).json({ error: 'name, network and baseRate are required' });
+    }
+
+    if (typeof categoryRates !== 'object' || categoryRates === null || Array.isArray(categoryRates)) {
+      return res.status(400).json({ error: 'categoryRates must be an object, e.g. { "dining": 3, "travel": 2 }' });
+    }
+
+    // Only whitelisted fields are passed, so clients can't set createdAt or _id
+    const product = await CardProduct.create({
+      name: String(name).trim(),
+      network,
+      annualFee: Number(annualFee),
+      baseRate: Number(baseRate),
+      categoryRates
+    });
+
+    res.status(201).json(product);
+  } catch (err) {
+    // Duplicate product name (unique index on name)
+    if (err.code === 11000) {
+      return res.status(409).json({ error: 'A card product with this name already exists' });
+    }
+    // Schema validation: bad network, negative rates/fees, non-numeric values, etc.
+    if (err.name === 'ValidationError') {
+      const messages = Object.values(err.errors).map(e => e.message);
+      return res.status(400).json({ error: messages.join('; ') });
+    }
+    next(err);
+  }
 };
