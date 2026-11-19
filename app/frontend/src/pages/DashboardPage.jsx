@@ -605,7 +605,7 @@ export default function DashboardPage() {
     setNewCard((prev) => ({
       ...prev,
       cardName: prod.name,
-      cardProduct: prod._id || prev.cardProduct,
+      cardProduct: prod._id || '',
       apr: String(prod.defaultApr ?? prev.apr),
       creditLimit: String(prod.defaultLimit ?? prev.creditLimit),
     }));
@@ -615,16 +615,29 @@ export default function DashboardPage() {
     e.preventDefault();
     setCardError(null);
 
-    if (!newCard.cardProduct || !newCard.cardProduct.trim()) {
-      setCardError('Please select a card product or provide a valid product identifier.');
-      return;
-    }
+    const normalizedName = newCard.cardName.trim().toLowerCase();
+    const matchedProd = mergedCardProducts.find(
+      (p) => p.name?.toLowerCase() === normalizedName
+    );
+    const matchedExistingCard = cards.find(
+      (c) => c.cardName?.toLowerCase() === normalizedName
+    );
+    const existingCardProdId =
+      typeof matchedExistingCard?.cardProductId === 'object'
+        ? matchedExistingCard.cardProductId?._id
+        : matchedExistingCard?.cardProductId;
+
+    const resolvedCardProduct =
+      newCard.cardProduct?.trim() ||
+      matchedProd?._id ||
+      existingCardProdId ||
+      newCard.cardName.trim();
 
     setCreatingCard(true);
     try {
       await createUserCard({
         cardName: newCard.cardName.trim(),
-        cardProduct: newCard.cardProduct.trim(),
+        cardProduct: String(resolvedCardProduct),
         last4: newCard.last4.trim(),
         creditLimit: Number(newCard.creditLimit),
         currentBalance: Number(newCard.currentBalance || 0),
@@ -1177,21 +1190,7 @@ export default function DashboardPage() {
                     />
                   </div>
 
-                  <div className="col-span-3">
-                    <label className="block text-[11px] text-slate-400 mb-1">
-                      Card Product Identifier <span className="text-[#F85C70]">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Select template or enter product ID"
-                      value={newCard.cardProduct}
-                      onChange={(e) => setNewCard({ ...newCard, cardProduct: e.target.value })}
-                      className="field-input py-1.5 text-xs font-mono"
-                    />
-                  </div>
-
-                  <div className="col-span-1">
+                  <div className="col-span-2">
                     <label className="block text-[11px] text-slate-400 mb-1">
                       Last 4 <span className="text-[#F85C70]">*</span>
                     </label>
@@ -1206,7 +1205,7 @@ export default function DashboardPage() {
                     />
                   </div>
 
-                  <div className="col-span-1">
+                  <div className="col-span-2">
                     <label className="block text-[11px] text-slate-400 mb-1">
                       Limit ($) <span className="text-[#F85C70]">*</span>
                     </label>
@@ -1221,7 +1220,7 @@ export default function DashboardPage() {
                     />
                   </div>
 
-                  <div className="col-span-1">
+                  <div className="col-span-2">
                     <label className="block text-[11px] text-slate-400 mb-1">Balance ($)</label>
                     <input
                       type="number"
@@ -1265,36 +1264,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-1">
-                  <div className="text-[11px] text-slate-500">
-                    {cards.length > 0 && (
-                      <span>
-                        Quick-fill product from your existing cards:{' '}
-                        {cards.map((c) => {
-                          const pid =
-                            typeof c.cardProductId === 'object'
-                              ? c.cardProductId?._id
-                              : c.cardProductId;
-                          return pid ? (
-                            <button
-                              key={c._id}
-                              type="button"
-                              onClick={() =>
-                                setNewCard((prev) => ({
-                                  ...prev,
-                                  cardName: c.cardName,
-                                  cardProduct: String(pid),
-                                }))
-                              }
-                              className="ml-1.5 px-2 py-0.5 rounded bg-[#16213B] text-[#7E8EF7] hover:underline font-medium"
-                            >
-                              {c.cardName}
-                            </button>
-                          ) : null;
-                        })}
-                      </span>
-                    )}
-                  </div>
+                <div className="flex justify-end pt-1">
                   <button type="submit" disabled={creatingCard} className="btn-primary text-xs">
                     {creatingCard ? 'Saving...' : 'Save Card'}
                   </button>

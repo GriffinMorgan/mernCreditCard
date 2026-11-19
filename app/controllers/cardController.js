@@ -17,7 +17,8 @@ exports.createCard = async (req, res, next) => {
   try {
     const { cardName = '', cardProduct, last4, creditLimit, currentBalance = 0, apr, expirationDate } = req.body || {};
 
-    if (!cardName || !cardProduct || !last4 || creditLimit == null || apr == null || !expirationDate) {
+    const productLookup = cardProduct || cardName;
+    if (!cardName || !productLookup || !last4 || creditLimit == null || apr == null || !expirationDate) {
       return res.status(400).json({ error: 'cardName, cardProduct, last4, creditLimit, apr and expirationDate are required' });
     }
 
@@ -25,7 +26,14 @@ exports.createCard = async (req, res, next) => {
       return res.status(400).json({ error: 'Expiration date must be in MM/YYYY format' });
     }
 
-    const product = await CardProduct.findById(cardProduct);
+    let product = null;
+    if (mongoose.Types.ObjectId.isValid(productLookup)) {
+      product = await CardProduct.findById(productLookup);
+    }
+    if (!product) {
+      const escapedName = String(productLookup).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      product = await CardProduct.findOne({ name: { $regex: `^${escapedName}$`, $options: 'i' } });
+    }
     if (!product) {
       return res.status(404).json({ error: 'Card product not found' });
     }
