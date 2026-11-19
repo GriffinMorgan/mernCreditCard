@@ -182,6 +182,13 @@ export async function fetchCardProducts() {
   });
 }
 
+export async function createCardProduct({ name, network, annualFee, baseRate, categoryRates }) {
+  return request('/api/cards/products', {
+    method: 'POST',
+    body: JSON.stringify({ name, network, annualFee, baseRate, categoryRates }),
+  });
+}
+
 export async function fetchUserCards({ page = 1, limit = 25 } = {}) {
   return request(`/api/cards?page=${page}&limit=${limit}`, {
     method: 'GET',
@@ -231,6 +238,26 @@ export async function createUserTransaction({ merchant, category, amount, cardId
 export async function deleteUserTransaction(transId) {
   return request(`/api/transactions/${transId}`, {
     method: 'DELETE',
+  });
+}
+
+export async function fetchTransactionAnalysis() {
+  return request('/api/transactions/analysis', {
+    method: 'GET',
+  });
+}
+
+// --- Company ---
+
+export async function fetchCompanySummary() {
+  return request('/api/company/summary', {
+    method: 'GET',
+  });
+}
+
+export async function fetchCompanyCategoryAnalysis(window = 'month') {
+  return request(`/api/company/category-analysis?window=${encodeURIComponent(window)}`, {
+    method: 'GET',
   });
 }
 

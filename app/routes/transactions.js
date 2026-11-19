@@ -18,11 +18,11 @@ router.post('/',transactions.createTrans);
 // GET  /api/transactions/getTrans         - Get all transactions for user
 router.get('/', transactions.getTrans);
 
-// GET  /api/transactions/:transId - one card, only if it belongs to the user
-router.get('/:transId', transactions.getTransById);
-
-// GET /api/transactions/analysis
+// GET /api/transactions/analysis - Spending breakdown & right-card analysis
 router.get('/analysis', transactions.getTransAnalysis);
+
+// GET  /api/transactions/:transId - one transaction, only if it belongs to the user
+router.get('/:transId', transactions.getTransById);
 
 // DELETE /api/transactions/delete:transId
 router.delete('/:transId', transactions.deleteTrans);

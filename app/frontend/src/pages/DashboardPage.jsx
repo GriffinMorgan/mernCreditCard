@@ -8,10 +8,14 @@ import {
   createUserCard,
   deleteUserCard,
   fetchCardProducts,
+  createCardProduct,
   fetchUserTransactions,
   fetchTransactionById,
   createUserTransaction,
   deleteUserTransaction,
+  fetchTransactionAnalysis,
+  fetchCompanySummary,
+  fetchCompanyCategoryAnalysis,
   fetchAdminUsers,
   createCompanyAccount,
   createAdminAccount,
@@ -19,6 +23,8 @@ import {
   TRANSACTION_CATEGORIES,
   DEFAULT_CARD_PRODUCTS,
 } from '../services/api';
+
+const CARD_NETWORKS = ['Visa', 'Mastercard', 'Amex', 'Discover'];
 
 const CATEGORY_COLORS = {
   Travel: '#7E8EF7',
@@ -33,14 +39,37 @@ const CATEGORY_COLORS = {
 
 const PRODUCT_ID_CACHE_KEY = 'spendsignal_product_ids_production';
 
-// Helper to get the reward rate of a product template by card name and category
-function getProductRateForCategory(cardNameOrProduct, category) {
-  if (!cardNameOrProduct) return 0.01;
-  if (typeof cardNameOrProduct === 'object' && cardNameOrProduct.baseRate != null) {
-    const catRates = cardNameOrProduct.categoryRates || {};
-    return catRates[category] ?? cardNameOrProduct.baseRate;
+// Convert user-entered percentage (e.g. 1.5 -> 0.015) while preserving decimal rates (e.g. 0.015)
+function normalizeRateInput(rawValue) {
+  const num = Number(rawValue);
+  if (Number.isNaN(num) || num < 0) return 0;
+  return num > 1 ? Math.round((num / 100) * 10000) / 10000 : num;
+}
+
+// Helper to get the reward rate of a card (using flattened product rates) or fallback template
+function getCardRateForCategory(cardOrName, category) {
+  if (!cardOrName) return 0.01;
+  if (typeof cardOrName === 'object') {
+    const productObj =
+      cardOrName.baseRate != null
+        ? cardOrName
+        : cardOrName.cardProductId && typeof cardOrName.cardProductId === 'object'
+        ? cardOrName.cardProductId
+        : null;
+
+    if (productObj && productObj.baseRate != null) {
+      const catRates = productObj.categoryRates || {};
+      const targetKey = String(category || '').toLowerCase();
+      for (const [k, v] of Object.entries(catRates)) {
+        if (k.toLowerCase() === targetKey) return Number(v);
+      }
+      return Number(productObj.baseRate);
+    }
+
+    cardOrName = cardOrName.cardName;
   }
-  const normalized = String(cardNameOrProduct).toLowerCase().trim();
+
+  const normalized = String(cardOrName || '').toLowerCase().trim();
   const match = DEFAULT_CARD_PRODUCTS.find(
     (p) =>
       normalized.includes(p.name.toLowerCase()) ||
@@ -48,6 +77,17 @@ function getProductRateForCategory(cardNameOrProduct, category) {
   );
   if (!match) return 0.01;
   return match.categoryRates[category] ?? match.baseRate;
+}
+
+function formatCardRatesSummary(card) {
+  if (!card || card.baseRate == null) return null;
+  const baseStr = `${(Number(card.baseRate) * 100).toFixed(1)}% base`;
+  const catEntries = Object.entries(card.categoryRates || {});
+  if (catEntries.length === 0) return baseStr;
+  const catStr = catEntries
+    .map(([k, v]) => `${k} ${(Number(v) * 100).toFixed(0)}%`)
+    .join(', ');
+  return `${baseStr} · ${catStr}`;
 }
 
 export default function DashboardPage() {
@@ -102,8 +142,27 @@ export default function DashboardPage() {
   const [transSortField, setTransSortField] = useState('transactionDate');
   const [transSortDir, setTransSortDir] = useState('desc');
 
+  // --- Consumer Analysis state ---
+  const [transAnalysis, setTransAnalysis] = useState(null);
+
   // --- Credit Card Company Portal state ---
   const [companyHorizon, setCompanyHorizon] = useState('month'); // 'day' | 'week' | 'month'
+  const [companySummary, setCompanySummary] = useState(null);
+  const [companyCategoryData, setCompanyCategoryData] = useState(null);
+  const [loadingCompanySummary, setLoadingCompanySummary] = useState(false);
+  const [loadingCompanyCategories, setLoadingCompanyCategories] = useState(false);
+  const [companyError, setCompanyError] = useState(null);
+  const [showCreateProductModal, setShowCreateProductModal] = useState(false);
+  const [newProduct, setNewProduct] = useState({
+    name: '',
+    network: 'Visa',
+    annualFee: '0',
+    baseRate: '1.5',
+    categoryRates: {},
+  });
+  const [creatingProduct, setCreatingProduct] = useState(false);
+  const [productFormError, setProductFormError] = useState(null);
+  const [productFormSuccess, setProductFormSuccess] = useState(null);
 
   // --- Admin state ---
   const [adminUsers, setAdminUsers] = useState([]);
@@ -130,7 +189,7 @@ export default function DashboardPage() {
     password: '',
   });
 
-  // Merge CardProducts from backend, discovered cardProductIds on user cards, and DEFAULT_CARD_PRODUCTS
+  // Merge CardProducts from backend with default metadata; prefer live DB products when present
   const mergedCardProducts = useMemo(() => {
     let cachedMap = {};
     try {
@@ -161,17 +220,24 @@ export default function DashboardPage() {
       // ignore storage errors
     }
 
-    return DEFAULT_CARD_PRODUCTS.map((def) => {
-      const fromApi = cardProducts.find(
-        (p) => p.name?.toLowerCase() === def.name.toLowerCase()
-      );
-      const resolvedId = fromApi?._id || cachedMap[def.name] || '';
-      return {
-        ...def,
-        ...(fromApi || {}),
-        _id: resolvedId,
-      };
-    });
+    if (cardProducts.length > 0) {
+      return cardProducts.map((apiProd) => {
+        const defaultMeta = DEFAULT_CARD_PRODUCTS.find(
+          (d) => d.name.toLowerCase() === apiProd.name?.toLowerCase()
+        );
+        return {
+          defaultApr: defaultMeta?.defaultApr ?? 19.99,
+          defaultLimit: defaultMeta?.defaultLimit ?? 5000,
+          ...apiProd,
+          categoryRates: apiProd.categoryRates || {},
+        };
+      });
+    }
+
+    return DEFAULT_CARD_PRODUCTS.map((def) => ({
+      ...def,
+      _id: cachedMap[def.name] || '',
+    }));
   }, [cardProducts, cards]);
 
   const loadCardProducts = async () => {
@@ -187,7 +253,7 @@ export default function DashboardPage() {
   };
 
   const loadUserCards = async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || assignedRole !== 'user') return;
     setLoadingCards(true);
     try {
       const res = await fetchUserCards({ page: 1, limit: 50 });
@@ -205,7 +271,7 @@ export default function DashboardPage() {
   };
 
   const loadUserTransactions = async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || assignedRole !== 'user') return;
     setLoadingTrans(true);
     try {
       const res = await fetchUserTransactions({ page: 1, limit: 50 });
@@ -217,8 +283,48 @@ export default function DashboardPage() {
     }
   };
 
+  const loadTransactionAnalysis = async () => {
+    if (!isAuthenticated || assignedRole !== 'user') return;
+    try {
+      const res = await fetchTransactionAnalysis();
+      if (res.data && typeof res.data === 'object') {
+        setTransAnalysis(res.data);
+      }
+    } catch {
+      setTransAnalysis(null);
+    }
+  };
+
+  const loadCompanySummary = async () => {
+    if (!isAuthenticated || assignedRole !== 'company') return;
+    setLoadingCompanySummary(true);
+    setCompanyError(null);
+    try {
+      const res = await fetchCompanySummary();
+      setCompanySummary(res.data || null);
+    } catch (err) {
+      setCompanyError(err.message || 'Could not load company summary analytics');
+    } finally {
+      setLoadingCompanySummary(false);
+    }
+  };
+
+  const loadCompanyCategoryAnalysis = async (windowVal = companyHorizon) => {
+    if (!isAuthenticated || assignedRole !== 'company') return;
+    setLoadingCompanyCategories(true);
+    setCompanyError(null);
+    try {
+      const res = await fetchCompanyCategoryAnalysis(windowVal);
+      setCompanyCategoryData(res.data || null);
+    } catch (err) {
+      setCompanyError(err.message || 'Could not load category analysis');
+    } finally {
+      setLoadingCompanyCategories(false);
+    }
+  };
+
   const loadAdminAccounts = async () => {
-    if (!isAuthenticated || user?.role !== 'admin') return;
+    if (!isAuthenticated || assignedRole !== 'admin') return;
     setLoadingAdminUsers(true);
     setAdminError(null);
     try {
@@ -232,13 +338,24 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    loadCardProducts();
-    loadUserCards();
-    loadUserTransactions();
-    if (user?.role === 'admin') {
+    if (!isAuthenticated) return;
+    if (assignedRole === 'user') {
+      loadCardProducts();
+      loadUserCards();
+      loadUserTransactions();
+      loadTransactionAnalysis();
+    } else if (assignedRole === 'company') {
+      loadCardProducts();
+      loadCompanySummary();
+    } else if (assignedRole === 'admin') {
       loadAdminAccounts();
     }
-  }, [isAuthenticated, user?.role]);
+  }, [isAuthenticated, assignedRole]);
+
+  useEffect(() => {
+    if (!isAuthenticated || assignedRole !== 'company') return;
+    loadCompanyCategoryAnalysis(companyHorizon);
+  }, [companyHorizon, isAuthenticated, assignedRole]);
 
   // Auto-select first known cardProduct _id when available
   useEffect(() => {
@@ -363,10 +480,49 @@ export default function DashboardPage() {
   // --- Consumer Analytics: Category Breakdown Circle & Right-Card Optimization ---
   const consumerAnalytics = useMemo(() => {
     const validTx = transactions.filter((t) => t.status !== 'declined');
-    const totalTrackedSpend = validTx.reduce((sum, t) => sum + Number(t.amount || 0), 0);
     const totalRewardsEarned = validTx.reduce((sum, t) => sum + Number(t.rewardsEarned || 0), 0);
 
-    // Category breakdown
+    // Prefer live server-side analysis from GET /api/transactions/analysis
+    if (transAnalysis && Array.isArray(transAnalysis.categoryBreakdown)) {
+      const categorySegments = transAnalysis.categoryBreakdown.map((c) => ({
+        category: c.category,
+        amount: Number(c.totalSpend || 0),
+        pct: Number(c.percentOfSpend || 0),
+        transactions: c.transactions || 0,
+        color: CATEGORY_COLORS[c.category] || '#94A3B8',
+      }));
+
+      const wrongCardFindings = (transAnalysis.rightCardAnalysis?.transactions || []).map(
+        (item) => ({
+          _id: item.transactionId,
+          merchant: item.merchant,
+          category: item.category,
+          amount: Number(item.amount || 0),
+          usedCardName: item.cardUsed
+            ? `${item.cardUsed.cardName} (•••• ${item.cardUsed.last4})`
+            : 'Used Card',
+          actualRate: Number(item.cardUsed?.rewardRate || 0),
+          bestCardName: item.betterCard
+            ? `${item.betterCard.cardName} (•••• ${item.betterCard.last4})`
+            : 'Better Card',
+          bestRate: Number(item.betterCard?.rewardRate || 0),
+          missed: Number(item.missedRewards || 0),
+        })
+      );
+
+      return {
+        totalTrackedSpend: Number(transAnalysis.totalSpend || 0),
+        totalRewardsEarned,
+        categorySegments,
+        wrongCardFindings,
+        totalMissedRewardsInWallet: Number(
+          transAnalysis.rightCardAnalysis?.totalMissedRewards || 0
+        ),
+      };
+    }
+
+    // Fallback computation using flattened card rates if analysis endpoint is unavailable
+    const totalTrackedSpend = validTx.reduce((sum, t) => sum + Number(t.amount || 0), 0);
     const catTotals = {};
     TRANSACTION_CATEGORIES.forEach((cat) => {
       catTotals[cat] = 0;
@@ -386,7 +542,6 @@ export default function DashboardPage() {
         color: CATEGORY_COLORS[category] || '#94A3B8',
       }));
 
-    // Check each transaction against all active cards in user's wallet to find suboptimal card usage
     const activeWalletCards = cards.filter((c) => c.status !== 'closed');
     const wrongCardFindings = [];
     let totalMissedRewardsInWallet = 0;
@@ -398,7 +553,7 @@ export default function DashboardPage() {
       let bestRate = actualRate;
 
       activeWalletCards.forEach((candidateCard) => {
-        const candidateRate = getProductRateForCategory(candidateCard.cardName, t.category);
+        const candidateRate = getCardRateForCategory(candidateCard, t.category);
         if (candidateRate > bestRate + 0.0001) {
           bestRate = candidateRate;
           bestCard = candidateCard;
@@ -431,85 +586,7 @@ export default function DashboardPage() {
       wrongCardFindings,
       totalMissedRewardsInWallet: Math.round(totalMissedRewardsInWallet * 100) / 100,
     };
-  }, [transactions, cards, cardByIdMap]);
-
-  // --- Credit Card Company Analytics (Day / Week / Month Customer Spend & Reward Maximization) ---
-  const companyAnalytics = useMemo(() => {
-    const liveValid = transactions.filter((t) => t.status !== 'declined');
-    const liveTotal = liveValid.reduce((s, t) => s + Number(t.amount || 0), 0);
-    const liveRewards = liveValid.reduce((s, t) => s + Number(t.rewardsEarned || 0), 0);
-
-    const basePortfolioMonth = 3218.29 + liveTotal;
-    const basePortfolioWeek = Math.round(basePortfolioMonth * 0.27 * 100) / 100;
-    const basePortfolioDay = Math.round(basePortfolioMonth * 0.042 * 100) / 100;
-
-    const multiplier =
-      companyHorizon === 'day' ? 0.042 : companyHorizon === 'week' ? 0.27 : 1;
-
-    const categoryRows = [
-      {
-        category: 'Travel',
-        monthSpend: 1759.0,
-        avgRate: 0.045,
-        optimalShare: 92,
-        topProduct: 'Platinum (5%) & Travel Rewards (4%)',
-      },
-      {
-        category: 'Groceries',
-        monthSpend: 553.69,
-        avgRate: 0.026,
-        optimalShare: 74,
-        topProduct: 'Everyday Cash (3%)',
-      },
-      {
-        category: 'Dining',
-        monthSpend: 339.45,
-        avgRate: 0.021,
-        optimalShare: 58,
-        topProduct: 'Dining Plus (5%) & Travel Rewards (3%)',
-      },
-      {
-        category: 'Gas',
-        monthSpend: 205.2,
-        avgRate: 0.024,
-        optimalShare: 71,
-        topProduct: 'Everyday Cash (3%)',
-      },
-      {
-        category: 'Shopping',
-        monthSpend: 193.08,
-        avgRate: 0.016,
-        optimalShare: 64,
-        topProduct: 'Student Starter (2%) & Flat 2% Cash',
-      },
-      {
-        category: 'Utilities',
-        monthSpend: 118.4,
-        avgRate: 0.01,
-        optimalShare: 45,
-        topProduct: 'Flat 2% Cash (2%)',
-      },
-      {
-        category: 'Entertainment',
-        monthSpend: 72.96,
-        avgRate: 0.014,
-        optimalShare: 52,
-        topProduct: 'Dining Plus (3%)',
-      },
-    ].map((row) => ({
-      ...row,
-      horizonSpend: Math.round(row.monthSpend * multiplier * 100) / 100,
-    }));
-
-    return {
-      daySpend: basePortfolioDay,
-      weekSpend: basePortfolioWeek,
-      monthSpend: basePortfolioMonth,
-      totalRewardsPaid: Math.round((89.45 + liveRewards) * multiplier * 100) / 100,
-      maximizationRate: 71.4,
-      categoryRows,
-    };
-  }, [transactions, companyHorizon]);
+  }, [transAnalysis, transactions, cards, cardByIdMap]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -555,7 +632,7 @@ export default function DashboardPage() {
         expirationDate: newCard.expirationDate.trim(),
       });
       setShowAddCardModal(false);
-      await loadUserCards();
+      await Promise.all([loadUserCards(), loadTransactionAnalysis()]);
     } catch (err) {
       setCardError(err.message || 'Failed to create card');
     } finally {
@@ -572,7 +649,7 @@ export default function DashboardPage() {
       if (selectedCardDetail?._id === cardId) {
         setSelectedCardDetail(null);
       }
-      await loadUserCards();
+      await Promise.all([loadUserCards(), loadTransactionAnalysis()]);
     } catch (err) {
       setCardError(err.message || 'Failed to delete card');
     } finally {
@@ -609,7 +686,7 @@ export default function DashboardPage() {
       });
       setNewTrans((prev) => ({ ...prev, merchant: '', amount: '' }));
       setShowAddTransModal(false);
-      await loadUserTransactions();
+      await Promise.all([loadUserTransactions(), loadTransactionAnalysis()]);
     } catch (err) {
       setTransError(err.message || 'Failed to create transaction');
     } finally {
@@ -626,11 +703,54 @@ export default function DashboardPage() {
       if (selectedTransDetail?._id === transId) {
         setSelectedTransDetail(null);
       }
-      await loadUserTransactions();
+      await Promise.all([loadUserTransactions(), loadTransactionAnalysis()]);
     } catch (err) {
       setTransError(err.message || 'Failed to delete transaction');
     } finally {
       setDeletingTransId(null);
+    }
+  };
+
+  const handleCreateCardProduct = async (e) => {
+    e.preventDefault();
+    setProductFormError(null);
+    setProductFormSuccess(null);
+
+    if (!newProduct.name.trim()) {
+      setProductFormError('Product name is required.');
+      return;
+    }
+
+    const parsedCategoryRates = {};
+    Object.entries(newProduct.categoryRates || {}).forEach(([cat, rawVal]) => {
+      if (rawVal !== '' && rawVal != null) {
+        parsedCategoryRates[cat] = normalizeRateInput(rawVal);
+      }
+    });
+
+    setCreatingProduct(true);
+    try {
+      const res = await createCardProduct({
+        name: newProduct.name.trim(),
+        network: newProduct.network,
+        annualFee: Number(newProduct.annualFee || 0),
+        baseRate: normalizeRateInput(newProduct.baseRate),
+        categoryRates: parsedCategoryRates,
+      });
+      setProductFormSuccess(`Created card product "${res.data?.name || newProduct.name.trim()}".`);
+      setNewProduct({
+        name: '',
+        network: 'Visa',
+        annualFee: '0',
+        baseRate: '1.5',
+        categoryRates: {},
+      });
+      setShowCreateProductModal(false);
+      await loadCardProducts();
+    } catch (err) {
+      setProductFormError(err.message || 'Failed to create card product');
+    } finally {
+      setCreatingProduct(false);
     }
   };
 
@@ -1199,6 +1319,7 @@ export default function DashboardPage() {
                       Network &amp; Number {renderSortIndicator('network')}
                     </th>
                     <th className="py-3 px-4 font-medium">Status</th>
+                    <th className="py-3 px-4 font-medium">Reward Rates</th>
                     <th
                       onClick={() => handleSort('currentBalance')}
                       className="py-3 px-4 font-medium text-right cursor-pointer hover:text-white"
@@ -1222,57 +1343,63 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#1A2540]">
-                  {filteredAndSortedCards.map((card) => (
-                    <tr
-                      key={card._id}
-                      onClick={() => handleInspectSingleCard(card._id)}
-                      className="hover:bg-[#16213B]/60 cursor-pointer transition-colors"
-                    >
-                      <td className="py-3.5 px-6 font-semibold text-white">{card.cardName}</td>
-                      <td className="py-3.5 px-4 font-mono text-slate-300">
-                        {card.network} · {card.maskedNumber || `•••• ${card.last4}`}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[11px] font-medium ${
-                            card.status === 'active'
-                              ? 'bg-emerald-500/15 text-emerald-300'
-                              : 'bg-[#F85C70]/15 text-[#F85C70]'
-                          }`}
-                        >
-                          {card.status || 'active'}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono font-semibold text-white tabular-nums">
-                        $
-                        {Number(card.currentBalance).toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-slate-300 tabular-nums">
-                        ${Number(card.creditLimit).toLocaleString()}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-emerald-400 tabular-nums">
-                        $
-                        {Number(
-                          card.availableCredit ?? card.creditLimit - card.currentBalance
-                        ).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-slate-400 tabular-nums">
-                        {card.apr}% · {card.expirationDate}
-                      </td>
-                      <td className="py-3.5 px-6 text-right">
-                        <button
-                          type="button"
-                          disabled={deletingCardId === card._id}
-                          onClick={(e) => handleDeleteCard(e, card._id)}
-                          className="px-2.5 py-1 rounded bg-[#F85C70]/15 hover:bg-[#F85C70]/30 text-[#F85C70] text-[11px] font-medium transition-colors"
-                        >
-                          {deletingCardId === card._id ? 'Removing...' : 'Remove'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredAndSortedCards.map((card) => {
+                    const ratesSummary = formatCardRatesSummary(card);
+                    return (
+                      <tr
+                        key={card._id}
+                        onClick={() => handleInspectSingleCard(card._id)}
+                        className="hover:bg-[#16213B]/60 cursor-pointer transition-colors"
+                      >
+                        <td className="py-3.5 px-6 font-semibold text-white">{card.cardName}</td>
+                        <td className="py-3.5 px-4 font-mono text-slate-300">
+                          {card.network} · {card.maskedNumber || `•••• ${card.last4}`}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[11px] font-medium ${
+                              card.status === 'active'
+                                ? 'bg-emerald-500/15 text-emerald-300'
+                                : 'bg-[#F85C70]/15 text-[#F85C70]'
+                            }`}
+                          >
+                            {card.status || 'active'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-[11px] text-slate-300">
+                          {ratesSummary || '—'}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono font-semibold text-white tabular-nums">
+                          $
+                          {Number(card.currentBalance).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                          })}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono text-slate-300 tabular-nums">
+                          ${Number(card.creditLimit).toLocaleString()}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono text-emerald-400 tabular-nums">
+                          $
+                          {Number(
+                            card.availableCredit ?? card.creditLimit - card.currentBalance
+                          ).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono text-slate-400 tabular-nums">
+                          {card.apr}% · {card.expirationDate}
+                        </td>
+                        <td className="py-3.5 px-6 text-right">
+                          <button
+                            type="button"
+                            disabled={deletingCardId === card._id}
+                            onClick={(e) => handleDeleteCard(e, card._id)}
+                            className="px-2.5 py-1 rounded bg-[#F85C70]/15 hover:bg-[#F85C70]/30 text-[#F85C70] text-[11px] font-medium transition-colors"
+                          >
+                            {deletingCardId === card._id ? 'Removing...' : 'Remove'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             ) : (
@@ -1284,8 +1411,8 @@ export default function DashboardPage() {
             )}
 
             {selectedCardDetail && (
-              <div className="p-4 bg-[#070B14] border-t border-[#1E2B48] flex items-center justify-between text-xs">
-                <div className="flex items-center gap-6">
+              <div className="p-4 bg-[#070B14] border-t border-[#1E2B48] flex items-center justify-between gap-4 text-xs">
+                <div className="flex flex-wrap items-center gap-6">
                   <div>
                     <span className="text-slate-400">Card: </span>
                     <strong className="text-white">{selectedCardDetail.cardName}</strong>
@@ -1316,11 +1443,19 @@ export default function DashboardPage() {
                       {selectedCardDetail.expirationDate}
                     </span>
                   </div>
+                  {formatCardRatesSummary(selectedCardDetail) && (
+                    <div>
+                      <span className="text-slate-400">Rewards: </span>
+                      <span className="text-[#7E8EF7]">
+                        {formatCardRatesSummary(selectedCardDetail)}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
                   onClick={() => setSelectedCardDetail(null)}
-                  className="text-slate-400 hover:text-white"
+                  className="text-slate-400 hover:text-white shrink-0"
                 >
                   Close
                 </button>
@@ -1658,220 +1793,468 @@ export default function DashboardPage() {
       {/* =====================================================================
           PORTAL 2: CREDIT CARD COMPANY PORTAL (Only accessible to role: 'company')
       ===================================================================== */}
-      {assignedRole === 'company' && (
-        <div className="space-y-6">
-          <div className="panel overflow-hidden">
-            <div className="px-6 py-4 bg-[#0D1426] border-b border-[#1E2B48] flex items-center justify-between">
-              <SpendSignalLogo
-                size="sm"
-                portalBadge="Credit Card Company Portal · Customer Spend & Reward Analytics"
-              />
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 mr-1">Spend Window:</span>
-                {[
-                  { id: 'day', label: 'Daily' },
-                  { id: 'week', label: 'Weekly' },
-                  { id: 'month', label: 'Monthly' },
-                ].map((h) => (
+      {assignedRole === 'company' && (() => {
+        const dayStats = companySummary?.day || {
+          totalSpend: 0,
+          rewardsPaid: 0,
+          transactions: 0,
+          bestCardUsagePct: 0,
+        };
+        const weekStats = companySummary?.week || {
+          totalSpend: 0,
+          rewardsPaid: 0,
+          transactions: 0,
+          bestCardUsagePct: 0,
+        };
+        const monthStats = companySummary?.month || {
+          totalSpend: 0,
+          rewardsPaid: 0,
+          transactions: 0,
+          bestCardUsagePct: 0,
+        };
+        const activeStats = companySummary?.[companyHorizon] || monthStats;
+        const categoryRows = companyCategoryData?.categories || [];
+
+        return (
+          <div className="space-y-6">
+            <div className="panel overflow-hidden">
+              <div className="px-6 py-4 bg-[#0D1426] border-b border-[#1E2B48] flex items-center justify-between gap-4">
+                <SpendSignalLogo
+                  size="sm"
+                  portalBadge="Credit Card Company Portal · Customer Spend & Reward Analytics"
+                />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 mr-1">Spend Window:</span>
+                  {[
+                    { id: 'day', label: 'Daily' },
+                    { id: 'week', label: 'Weekly' },
+                    { id: 'month', label: 'Monthly' },
+                  ].map((h) => (
+                    <button
+                      key={h.id}
+                      type="button"
+                      onClick={() => setCompanyHorizon(h.id)}
+                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                        companyHorizon === h.id
+                          ? 'bg-[#7E8EF7] text-[#090E1A] font-semibold'
+                          : 'bg-[#11192E] text-slate-400 hover:text-white border border-[#1E2B48]'
+                      }`}
+                    >
+                      {h.label}
+                    </button>
+                  ))}
                   <button
-                    key={h.id}
                     type="button"
-                    onClick={() => setCompanyHorizon(h.id)}
-                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                      companyHorizon === h.id
-                        ? 'bg-[#7E8EF7] text-[#090E1A] font-semibold'
-                        : 'bg-[#11192E] text-slate-400 hover:text-white border border-[#1E2B48]'
+                    onClick={() => {
+                      loadCompanySummary();
+                      loadCompanyCategoryAnalysis(companyHorizon);
+                      loadCardProducts();
+                    }}
+                    className="btn-secondary text-xs py-1 px-3 ml-2"
+                  >
+                    {loadingCompanySummary || loadingCompanyCategories ? 'Loading...' : 'Refresh'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {companyError && (
+                  <div className="p-3 rounded bg-[#F85C70]/10 border border-[#F85C70]/40 text-xs text-[#F85C70]">
+                    {companyError}
+                  </div>
+                )}
+
+                {/* Day / Week / Month Customer Spending KPIs */}
+                <div className="grid grid-cols-4 gap-4">
+                  <div
+                    onClick={() => setCompanyHorizon('day')}
+                    className={`panel-inset p-4 cursor-pointer transition-colors ${
+                      companyHorizon === 'day' ? 'border-[#7E8EF7]' : ''
                     }`}
                   >
-                    {h.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {/* Day / Week / Month Customer Spending KPIs */}
-              <div className="grid grid-cols-4 gap-4">
-                <div
-                  onClick={() => setCompanyHorizon('day')}
-                  className={`panel-inset p-4 cursor-pointer transition-colors ${
-                    companyHorizon === 'day' ? 'border-[#7E8EF7]' : ''
-                  }`}
-                >
-                  <div className="text-[11px] font-semibold uppercase text-slate-400">
-                    TOTAL CUSTOMER SPEND (DAY)
-                  </div>
-                  <div className="text-2xl font-bold text-white tabular-nums mt-1">
-                    $
-                    {companyAnalytics.daySpend.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                    })}
-                  </div>
-                  <div className="text-xs text-slate-500 mt-0.5">24-hour cardholder volume</div>
-                </div>
-
-                <div
-                  onClick={() => setCompanyHorizon('week')}
-                  className={`panel-inset p-4 cursor-pointer transition-colors ${
-                    companyHorizon === 'week' ? 'border-[#7E8EF7]' : ''
-                  }`}
-                >
-                  <div className="text-[11px] font-semibold uppercase text-slate-400">
-                    TOTAL CUSTOMER SPEND (WEEK)
-                  </div>
-                  <div className="text-2xl font-bold text-[#7E8EF7] tabular-nums mt-1">
-                    $
-                    {companyAnalytics.weekSpend.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                    })}
-                  </div>
-                  <div className="text-xs text-slate-500 mt-0.5">7-day cardholder volume</div>
-                </div>
-
-                <div
-                  onClick={() => setCompanyHorizon('month')}
-                  className={`panel-inset p-4 cursor-pointer transition-colors ${
-                    companyHorizon === 'month' ? 'border-[#7E8EF7]' : ''
-                  }`}
-                >
-                  <div className="text-[11px] font-semibold uppercase text-slate-400">
-                    TOTAL CUSTOMER SPEND (MONTH)
-                  </div>
-                  <div className="text-2xl font-bold text-emerald-400 tabular-nums mt-1">
-                    $
-                    {companyAnalytics.monthSpend.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                    })}
-                  </div>
-                  <div className="text-xs text-slate-500 mt-0.5">30-day cardholder volume</div>
-                </div>
-
-                <div className="panel-inset p-4">
-                  <div className="text-[11px] font-semibold uppercase text-slate-400">
-                    REWARD MAXIMIZATION
-                  </div>
-                  <div className="text-2xl font-bold text-[#F85C70] tabular-nums mt-1">
-                    {companyAnalytics.maximizationRate}%
-                  </div>
-                  <div className="text-xs text-slate-500 mt-0.5">
-                    Rewards paid ({companyHorizon}): ${companyAnalytics.totalRewardsPaid.toFixed(2)}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-12 gap-5">
-                {/* Left: Customer Spending & Reward Maximization Analysis by Category */}
-                <div className="col-span-7 panel-inset p-5 space-y-4">
-                  <div className="flex items-center justify-between border-b border-[#1A2540] pb-2.5">
-                    <div>
-                      <span className="text-sm font-bold text-white">
-                        Customer Spending &amp; Reward Maximization Analysis (
-                        {companyHorizon.toUpperCase()})
-                      </span>
-                      <p className="text-xs text-slate-400">
-                        Tracks whether cardholders are using their highest-multiplier card per
-                        category
-                      </p>
+                    <div className="text-[11px] font-semibold uppercase text-slate-400">
+                      TOTAL CUSTOMER SPEND (DAY)
                     </div>
-                    <span className="text-xs font-mono text-emerald-400">8 Categories</span>
+                    <div className="text-2xl font-bold text-white tabular-nums mt-1">
+                      $
+                      {Number(dayStats.totalSpend || 0).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {dayStats.transactions || 0} transaction(s) · Last 24 hours
+                    </div>
                   </div>
 
-                  <div className="space-y-3 text-xs">
-                    {companyAnalytics.categoryRows.map((row) => (
-                      <div
-                        key={row.category}
-                        className="p-3 rounded bg-[#11192E] border border-[#1E2B48] space-y-1.5"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="font-semibold text-white">{row.category}</span>
-                            <span className="text-slate-400 ml-2 text-[11px]">
-                              Best Product: {row.topProduct}
-                            </span>
-                          </div>
-                          <div className="font-mono text-slate-200 tabular-nums">
-                            ${row.horizonSpend.toFixed(2)} ·{' '}
-                            <span className="text-[#7E8EF7]">
-                              {row.optimalShare}% maximizing rewards
-                            </span>
-                          </div>
-                        </div>
-                        <div className="w-full h-2 bg-[#090E1A] rounded overflow-hidden flex">
-                          <div
-                            style={{ width: `${row.optimalShare}%` }}
-                            className="h-full bg-[#7E8EF7]"
-                            title="Optimal card used"
-                          />
-                          <div
-                            style={{ width: `${100 - row.optimalShare}%` }}
-                            className="h-full bg-[#F85C70]/70"
-                            title="Suboptimal card used"
-                          />
-                        </div>
-                      </div>
-                    ))}
+                  <div
+                    onClick={() => setCompanyHorizon('week')}
+                    className={`panel-inset p-4 cursor-pointer transition-colors ${
+                      companyHorizon === 'week' ? 'border-[#7E8EF7]' : ''
+                    }`}
+                  >
+                    <div className="text-[11px] font-semibold uppercase text-slate-400">
+                      TOTAL CUSTOMER SPEND (WEEK)
+                    </div>
+                    <div className="text-2xl font-bold text-[#7E8EF7] tabular-nums mt-1">
+                      $
+                      {Number(weekStats.totalSpend || 0).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {weekStats.transactions || 0} transaction(s) · Last 7 days
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => setCompanyHorizon('month')}
+                    className={`panel-inset p-4 cursor-pointer transition-colors ${
+                      companyHorizon === 'month' ? 'border-[#7E8EF7]' : ''
+                    }`}
+                  >
+                    <div className="text-[11px] font-semibold uppercase text-slate-400">
+                      TOTAL CUSTOMER SPEND (MONTH)
+                    </div>
+                    <div className="text-2xl font-bold text-emerald-400 tabular-nums mt-1">
+                      $
+                      {Number(monthStats.totalSpend || 0).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {monthStats.transactions || 0} transaction(s) · Last 30 days
+                    </div>
+                  </div>
+
+                  <div className="panel-inset p-4">
+                    <div className="text-[11px] font-semibold uppercase text-slate-400">
+                      REWARD MAXIMIZATION ({companyHorizon.toUpperCase()})
+                    </div>
+                    <div className="text-2xl font-bold text-[#F85C70] tabular-nums mt-1">
+                      {Number(activeStats.bestCardUsagePct || 0).toFixed(1)}%
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      Rewards paid: ${Number(activeStats.rewardsPaid || 0).toFixed(2)} (
+                      {activeStats.transactions || 0} txns)
+                    </div>
                   </div>
                 </div>
 
-                {/* Right: Credit Card Company Product Portfolio */}
-                <div className="col-span-5 panel-inset p-5 flex flex-col justify-between space-y-4">
-                  <div className="space-y-3">
+                <div className="grid grid-cols-12 gap-5">
+                  {/* Left: Customer Spending & Reward Maximization Analysis by Category */}
+                  <div className="col-span-7 panel-inset p-5 space-y-4">
                     <div className="flex items-center justify-between border-b border-[#1A2540] pb-2.5">
                       <div>
-                        <span className="text-sm font-bold text-white">Issued Card Products</span>
+                        <span className="text-sm font-bold text-white">
+                          Customer Spending &amp; Reward Maximization Analysis (
+                          {companyHorizon.toUpperCase()})
+                        </span>
                         <p className="text-xs text-slate-400">
-                          Company credit card products available to cardholders
+                          Tracks whether cardholders are using their highest-multiplier card per
+                          category
                         </p>
                       </div>
-                      <span className="text-xs font-mono text-[#7E8EF7]">
-                        {mergedCardProducts.length} Products
+                      <span className="text-xs font-mono text-emerald-400">
+                        {categoryRows.length} Categories
                       </span>
                     </div>
 
-                    <div className="space-y-2.5 text-xs">
-                      {mergedCardProducts.map((prod) => (
-                        <div
-                          key={prod.name}
-                          className="p-3 rounded bg-[#11192E] border border-[#1E2B48] space-y-1"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-white">
-                              {prod.name}{' '}
-                              <span className="text-[#7E8EF7] font-mono font-normal">
-                                ({prod.network})
-                              </span>
-                            </span>
-                            <span className="font-mono text-emerald-400">
-                              ${prod.annualFee}/yr fee
-                            </span>
-                          </div>
-                          <div className="text-slate-300 text-[11px]">
-                            Base: <strong>{(prod.baseRate * 100).toFixed(1)}%</strong>
-                            {Object.keys(prod.categoryRates || {}).length > 0 && (
-                              <>
-                                {' · '}
-                                {Object.entries(prod.categoryRates)
-                                  .map(([cat, r]) => `${cat}: ${(r * 100).toFixed(0)}%`)
-                                  .join(' · ')}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    {loadingCompanyCategories ? (
+                      <div className="py-12 text-center text-xs text-slate-400">
+                        Loading category analytics...
+                      </div>
+                    ) : categoryRows.length > 0 ? (
+                      <div className="space-y-3 text-xs">
+                        {categoryRows.map((row) => {
+                          const hasTxns = (row.transactions || 0) > 0;
+                          const maxPct = Math.min(
+                            100,
+                            Math.max(0, Number(row.pctCustomersMaximizing || 0))
+                          );
+                          return (
+                            <div
+                              key={row.category}
+                              className="p-3 rounded bg-[#11192E] border border-[#1E2B48] space-y-1.5"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div>
+                                  <span className="font-semibold text-white">{row.category}</span>
+                                  <span className="text-slate-400 ml-2 text-[11px]">
+                                    {row.transactions || 0} txns · {row.customers || 0} customer(s)
+                                    {' · '}Avg rate:{' '}
+                                    {(Number(row.avgRewardRate || 0) * 100).toFixed(2)}%
+                                  </span>
+                                </div>
+                                <div className="font-mono text-slate-200 tabular-nums text-right">
+                                  ${Number(row.totalSpend || 0).toFixed(2)}{' '}
+                                  <span className="text-emerald-400 text-[11px]">
+                                    (+${Number(row.totalRewards || 0).toFixed(2)})
+                                  </span>
+                                  {' · '}
+                                  <span className="text-[#7E8EF7]">
+                                    {hasTxns
+                                      ? `${maxPct.toFixed(1)}% maximizing`
+                                      : 'No activity'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="w-full h-2 bg-[#090E1A] rounded overflow-hidden flex">
+                                {hasTxns && (
+                                  <>
+                                    <div
+                                      style={{ width: `${maxPct}%` }}
+                                      className="h-full bg-[#7E8EF7]"
+                                      title="Customers maximizing rewards"
+                                    />
+                                    <div
+                                      style={{ width: `${100 - maxPct}%` }}
+                                      className="h-full bg-[#F85C70]/70"
+                                      title="Customers with suboptimal card usage"
+                                    />
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="py-12 text-center text-xs text-slate-400">
+                        No category spend data available for this window.
+                      </div>
+                    )}
                   </div>
 
-                  <div className="p-3 rounded bg-[#11192E] border border-[#1E2B48] text-xs text-slate-300">
-                    <strong className="text-white">Portfolio Insight:</strong> 28.6% of customer
-                    transactions occur on a 1%–1.5% base rate when the cardholder owns or qualifies
-                    for a 3%–5% category product.
+                  {/* Right: Credit Card Company Product Portfolio + Create Product Form */}
+                  <div className="col-span-5 panel-inset p-5 flex flex-col justify-between space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-[#1A2540] pb-2.5 gap-2">
+                        <div>
+                          <span className="text-sm font-bold text-white">Issued Card Products</span>
+                          <p className="text-xs text-slate-400">
+                            {mergedCardProducts.length} credit card product(s) in catalog
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProductFormError(null);
+                            setProductFormSuccess(null);
+                            setShowCreateProductModal((v) => !v);
+                          }}
+                          className="btn-primary text-xs py-1.5 px-3 shrink-0"
+                        >
+                          {showCreateProductModal ? 'Cancel' : '+ Create Card Product'}
+                        </button>
+                      </div>
+
+                      {productFormSuccess && (
+                        <div className="p-2.5 rounded bg-emerald-500/10 border border-emerald-500/40 text-xs text-emerald-300">
+                          {productFormSuccess}
+                        </div>
+                      )}
+
+                      {showCreateProductModal && (
+                        <form
+                          onSubmit={handleCreateCardProduct}
+                          className="p-4 rounded bg-[#11192E] border border-[#293B63] space-y-3 text-xs"
+                        >
+                          <div className="font-bold text-[#7E8EF7]">
+                            New Card Product
+                          </div>
+
+                          {productFormError && (
+                            <div className="p-2.5 rounded bg-[#F85C70]/10 border border-[#F85C70]/40 text-xs text-[#F85C70]">
+                              {productFormError}
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-2 gap-2.5">
+                            <div className="col-span-2">
+                              <label className="block text-[11px] text-slate-400 mb-1">
+                                Product Name <span className="text-[#F85C70]">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                maxLength={100}
+                                placeholder="e.g. Sapphire Preferred"
+                                value={newProduct.name}
+                                onChange={(e) =>
+                                  setNewProduct({ ...newProduct, name: e.target.value })
+                                }
+                                className="field-input py-1.5 text-xs"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] text-slate-400 mb-1">
+                                Network <span className="text-[#F85C70]">*</span>
+                              </label>
+                              <select
+                                value={newProduct.network}
+                                onChange={(e) =>
+                                  setNewProduct({ ...newProduct, network: e.target.value })
+                                }
+                                className="field-input py-1.5 text-xs"
+                              >
+                                {CARD_NETWORKS.map((net) => (
+                                  <option key={net} value={net}>
+                                    {net}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] text-slate-400 mb-1">
+                                Annual Fee ($)
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={newProduct.annualFee}
+                                onChange={(e) =>
+                                  setNewProduct({ ...newProduct, annualFee: e.target.value })
+                                }
+                                className="field-input py-1.5 text-xs font-mono"
+                              />
+                            </div>
+
+                            <div className="col-span-2">
+                              <label className="block text-[11px] text-slate-400 mb-1">
+                                Base Reward Rate (%) <span className="text-[#F85C70]">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                required
+                                min="0"
+                                step="0.01"
+                                placeholder="e.g. 1.5 for 1.5%"
+                                value={newProduct.baseRate}
+                                onChange={(e) =>
+                                  setNewProduct({ ...newProduct, baseRate: e.target.value })
+                                }
+                                className="field-input py-1.5 text-xs font-mono"
+                              />
+                              <p className="text-[10px] text-slate-500 mt-0.5">
+                                Values above 1 convert from % to decimal (1.5 → 0.015). For 1% use
+                                0.01 or 1.5 for 1.5%.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <div className="text-[11px] text-slate-400">
+                              Optional Category Bonus Rates (%):
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              {TRANSACTION_CATEGORIES.map((cat) => (
+                                <div key={cat} className="flex items-center gap-1.5">
+                                  <span className="text-[11px] text-slate-300 w-24 truncate">
+                                    {cat}
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="—"
+                                    value={newProduct.categoryRates[cat] ?? ''}
+                                    onChange={(e) =>
+                                      setNewProduct({
+                                        ...newProduct,
+                                        categoryRates: {
+                                          ...newProduct.categoryRates,
+                                          [cat]: e.target.value,
+                                        },
+                                      })
+                                    }
+                                    className="field-input py-1 px-2 text-xs font-mono"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end pt-1">
+                            <button
+                              type="submit"
+                              disabled={creatingProduct}
+                              className="btn-primary text-xs py-1.5 px-4"
+                            >
+                              {creatingProduct ? 'Creating...' : 'Create Product'}
+                            </button>
+                          </div>
+                        </form>
+                      )}
+
+                      <div className="space-y-2.5 text-xs max-h-[420px] overflow-y-auto pr-1">
+                        {mergedCardProducts.map((prod) => (
+                          <div
+                            key={prod._id || prod.name}
+                            className="p-3 rounded bg-[#11192E] border border-[#1E2B48] space-y-1"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-white">
+                                {prod.name}{' '}
+                                <span className="text-[#7E8EF7] font-mono font-normal">
+                                  ({prod.network})
+                                </span>
+                              </span>
+                              <span className="font-mono text-emerald-400">
+                                ${Number(prod.annualFee || 0)}/yr fee
+                              </span>
+                            </div>
+                            <div className="text-slate-300 text-[11px]">
+                              Base: <strong>{(Number(prod.baseRate || 0) * 100).toFixed(1)}%</strong>
+                              {Object.keys(prod.categoryRates || {}).length > 0 && (
+                                <>
+                                  {' · '}
+                                  {Object.entries(prod.categoryRates)
+                                    .map(([cat, r]) => `${cat}: ${(Number(r) * 100).toFixed(0)}%`)
+                                    .join(' · ')}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded bg-[#11192E] border border-[#1E2B48] text-xs text-slate-300">
+                      <strong className="text-white">Portfolio Insight:</strong>{' '}
+                      {activeStats.transactions > 0 ? (
+                        <>
+                          In the {companyHorizon} window,{' '}
+                          <strong className="text-[#7E8EF7]">
+                            {Number(activeStats.bestCardUsagePct || 0).toFixed(1)}%
+                          </strong>{' '}
+                          of customer transactions used their highest-earning card, generating{' '}
+                          <strong className="text-emerald-400">
+                            ${Number(activeStats.rewardsPaid || 0).toFixed(2)}
+                          </strong>{' '}
+                          in total rewards across{' '}
+                          <strong className="text-white">${Number(activeStats.totalSpend || 0).toFixed(2)}</strong>{' '}
+                          in spend.
+                        </>
+                      ) : (
+                        <>
+                          No transactions recorded in the {companyHorizon} window yet. Try switching
+                          to Monthly or refreshing once new cardholder transactions arrive.
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* =====================================================================
           PORTAL 3: ADMIN ACCOUNT MANAGEMENT (Only accessible to role: 'admin')
